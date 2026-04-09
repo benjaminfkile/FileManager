@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/AppShell';
+import InterceptorSetup from './components/InterceptorSetup';
 import RegisterPage from './pages/RegisterPage';
 import DrivePage from './pages/DrivePage';
 import FolderPage from './pages/FolderPage';
@@ -10,6 +11,8 @@ import RecycleBinPage from './pages/RecycleBinPage';
 
 function App() {
   return (
+    <>
+    <InterceptorSetup />
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute />}>
@@ -21,6 +24,7 @@ function App() {
         </Route>
       </Route>
     </Routes>
+    </>
   );
 }
 

@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
+jest.mock('./components/InterceptorSetup', () => () => null);
+
 jest.mock('./contexts/AuthContext', () => ({
   useAuth: () => ({
     isLoading: false,
