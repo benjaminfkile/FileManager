@@ -94,6 +94,20 @@ describe('AppShell', () => {
     expect(mockToggleMode).toHaveBeenCalledTimes(1);
   });
 
+  it('shows DarkMode icon when mode is light', () => {
+    mockUseThemeMode.mockReturnValue({ mode: 'light', toggleMode: mockToggleMode });
+    renderAtRoute('/');
+    const button = screen.getByLabelText('toggle dark mode');
+    expect(button.querySelector('[data-testid="DarkModeIcon"]')).toBeInTheDocument();
+  });
+
+  it('shows LightMode icon when mode is dark', () => {
+    mockUseThemeMode.mockReturnValue({ mode: 'dark', toggleMode: mockToggleMode });
+    renderAtRoute('/');
+    const button = screen.getByLabelText('toggle dark mode');
+    expect(button.querySelector('[data-testid="LightModeIcon"]')).toBeInTheDocument();
+  });
+
   it('shows hamburger icon on small screen', () => {
     setDesktop(false);
     renderAtRoute('/');
