@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 import * as userService from '../api/userService';
+import * as cognitoClient from '../lib/cognitoClient';
 import { IUser } from '../types';
 
 const fakeUser: IUser = {
@@ -13,27 +14,34 @@ const fakeUser: IUser = {
 };
 
 jest.mock('../api/userService');
+jest.mock('../lib/cognitoClient');
+
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
+const mockedGetIdToken = cognitoClient.getIdToken as jest.MockedFunction<typeof cognitoClient.getIdToken>;
+const mockedSignIn = cognitoClient.signIn as jest.MockedFunction<typeof cognitoClient.signIn>;
+const mockedSignOut = cognitoClient.signOut as jest.MockedFunction<typeof cognitoClient.signOut>;
 
 function TestConsumer() {
-  const { apiKey, currentUser, isLoading, login, logout } = useAuth();
+  const { currentUser, isLoading, login, logout } = useAuth();
   return (
     <div>
-      <span data-testid="apiKey">{apiKey ?? 'null'}</span>
       <span data-testid="user">{currentUser ? currentUser.username : 'null'}</span>
       <span data-testid="loading">{String(isLoading)}</span>
-      <button onClick={() => login('test-key')}>login</button>
+      <button onClick={() => login('alice@example.com', 'password123')}>login</button>
       <button onClick={logout}>logout</button>
     </div>
   );
 }
 
 beforeEach(() => {
-  localStorage.clear();
   mockedGetMe.mockReset();
+  mockedGetIdToken.mockReset();
+  mockedSignIn.mockReset();
+  mockedSignOut.mockReset();
 });
 
 test('renders children', () => {
+  mockedGetIdToken.mockResolvedValue(null);
   render(
     <AuthProvider>
       <p>hello</p>
@@ -42,8 +50,8 @@ test('renders children', () => {
   expect(screen.getByText('hello')).toBeInTheDocument();
 });
 
-test('on mount with a stored key, calls getMe and sets currentUser', async () => {
-  localStorage.setItem('fm_api_key', 'stored-key');
+test('on mount with existing Cognito session, calls getMe and sets currentUser', async () => {
+  mockedGetIdToken.mockResolvedValue('jwt-token');
   mockedGetMe.mockResolvedValue(fakeUser);
 
   render(
@@ -59,12 +67,12 @@ test('on mount with a stored key, calls getMe and sets currentUser', async () =>
   });
 
   expect(screen.getByTestId('loading')).toHaveTextContent('false');
-  expect(screen.getByTestId('apiKey')).toHaveTextContent('stored-key');
+  expect(mockedGetIdToken).toHaveBeenCalledTimes(1);
   expect(mockedGetMe).toHaveBeenCalledTimes(1);
 });
 
-test('on mount with a stored key, clears key on 401', async () => {
-  localStorage.setItem('fm_api_key', 'bad-key');
+test('on mount with existing session, clears user on getMe failure', async () => {
+  mockedGetIdToken.mockResolvedValue('jwt-token');
   mockedGetMe.mockRejectedValue({ response: { status: 401 } });
 
   render(
@@ -78,23 +86,29 @@ test('on mount with a stored key, clears key on 401', async () => {
   });
 
   expect(screen.getByTestId('user')).toHaveTextContent('null');
-  expect(screen.getByTestId('apiKey')).toHaveTextContent('null');
-  expect(localStorage.getItem('fm_api_key')).toBeNull();
+  expect(mockedSignOut).toHaveBeenCalled();
 });
 
-test('on mount without a stored key, does not call getMe', () => {
+test('on mount without a Cognito session, does not call getMe', async () => {
+  mockedGetIdToken.mockResolvedValue(null);
+
   render(
     <AuthProvider>
       <TestConsumer />
     </AuthProvider>,
   );
 
+  await waitFor(() => {
+    expect(screen.getByTestId('loading')).toHaveTextContent('false');
+  });
+
   expect(mockedGetMe).not.toHaveBeenCalled();
-  expect(screen.getByTestId('loading')).toHaveTextContent('false');
   expect(screen.getByTestId('user')).toHaveTextContent('null');
 });
 
-test('login saves key and fetches user', async () => {
+test('login calls signIn then fetches user', async () => {
+  mockedGetIdToken.mockResolvedValue(null);
+  mockedSignIn.mockResolvedValue('jwt-token');
   mockedGetMe.mockResolvedValue(fakeUser);
 
   render(
@@ -103,18 +117,21 @@ test('login saves key and fetches user', async () => {
     </AuthProvider>,
   );
 
+  await waitFor(() => {
+    expect(screen.getByTestId('loading')).toHaveTextContent('false');
+  });
+
   await act(async () => {
     screen.getByText('login').click();
   });
 
-  expect(localStorage.getItem('fm_api_key')).toBe('test-key');
-  expect(screen.getByTestId('apiKey')).toHaveTextContent('test-key');
+  expect(mockedSignIn).toHaveBeenCalledWith('alice@example.com', 'password123');
   expect(screen.getByTestId('user')).toHaveTextContent('asmith');
-  expect(mockedGetMe).toHaveBeenCalledTimes(1);
+  expect(mockedGetMe).toHaveBeenCalled();
 });
 
-test('logout clears localStorage and nulls currentUser', async () => {
-  localStorage.setItem('fm_api_key', 'stored-key');
+test('logout calls signOut and clears currentUser', async () => {
+  mockedGetIdToken.mockResolvedValue('jwt-token');
   mockedGetMe.mockResolvedValue(fakeUser);
 
   render(
@@ -131,7 +148,6 @@ test('logout clears localStorage and nulls currentUser', async () => {
     screen.getByText('logout').click();
   });
 
-  expect(localStorage.getItem('fm_api_key')).toBeNull();
+  expect(mockedSignOut).toHaveBeenCalled();
   expect(screen.getByTestId('user')).toHaveTextContent('null');
-  expect(screen.getByTestId('apiKey')).toHaveTextContent('null');
 });
