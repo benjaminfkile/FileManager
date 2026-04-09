@@ -209,28 +209,28 @@ describe('FolderPage', () => {
     expect(screen.queryByText('Share')).not.toBeInTheDocument();
   });
 
-  it('opens upload dialog from FAB', async () => {
+  it('opens upload dialog from SpeedDial', async () => {
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Work')).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByLabelText('add'));
-    await userEvent.click(screen.getByText('Upload file'));
+    await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Upload file' }));
 
     expect(screen.getByText('Upload File')).toBeInTheDocument();
   });
 
-  it('opens create folder dialog from FAB', async () => {
+  it('opens create folder dialog from SpeedDial', async () => {
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Work')).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByLabelText('add'));
-    await userEvent.click(screen.getByText('Create folder'));
+    await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New folder' }));
 
     expect(screen.getByText('New Folder')).toBeInTheDocument();
   });
