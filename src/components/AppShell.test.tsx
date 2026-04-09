@@ -45,6 +45,7 @@ function setDesktop(isDesktop: boolean) {
 beforeEach(() => {
   mockUseAuth.mockReturnValue({
     currentUser: { id: '1', first_name: 'John', last_name: 'Doe', username: 'jdoe' },
+    logout: jest.fn(),
   });
   mockUseThemeMode.mockReturnValue({ mode: 'light', toggleMode: mockToggleMode });
   mockToggleMode.mockClear();
@@ -108,5 +109,13 @@ describe('AppShell', () => {
   it('renders child route content', () => {
     renderAtRoute('/');
     expect(screen.getByText('DrivePage')).toBeInTheDocument();
+  });
+
+  it('opens user profile menu on avatar click', () => {
+    renderAtRoute('/');
+    fireEvent.click(screen.getByLabelText('user avatar'));
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('jdoe')).toBeInTheDocument();
+    expect(screen.getByText('Logout')).toBeInTheDocument();
   });
 });

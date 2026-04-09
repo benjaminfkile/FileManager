@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
+import UserProfileMenu from './UserProfileMenu';
 import {
   AppBar,
   Avatar,
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileAnchorEl, setProfileAnchorEl] = useState<HTMLElement | null>(null);
   const { currentUser } = useAuth();
   const { mode, toggleMode } = useThemeMode();
   const location = useLocation();
@@ -101,9 +103,10 @@ export default function AppShell() {
           <IconButton color="inherit" onClick={toggleMode} aria-label="toggle dark mode">
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
           </IconButton>
-          <IconButton aria-label="user avatar">
+          <IconButton aria-label="user avatar" onClick={(e) => setProfileAnchorEl(e.currentTarget)}>
             <Avatar sx={{ width: 32, height: 32 }}>{initials}</Avatar>
           </IconButton>
+          <UserProfileMenu anchorEl={profileAnchorEl} onClose={() => setProfileAnchorEl(null)} />
         </Toolbar>
       </AppBar>
 
