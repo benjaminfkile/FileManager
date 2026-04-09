@@ -7,8 +7,8 @@ import {
 } from '@mui/material';
 import { useNotification } from '../contexts/NotificationContext';
 import { getSharedWithMe } from '../api/sharedService';
-import { downloadFolder } from '../api/folderService';
 import { downloadFile } from '../api/fileService';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -45,24 +45,10 @@ export default function SharedPage() {
     fetchShared();
   }, [fetchShared]);
 
-  const handleFolderDownload = async (folder: IFolder) => {
-    try {
-      const blob = await downloadFolder(folder.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${folder.name}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      showNotification('Failed to download folder', 'error');
-    }
-  };
-
   const handleFileDownload = async (file: IFile) => {
     try {
-      const response = await downloadFile(file.id);
-      window.open(response.url, '_blank');
+      const { url } = await downloadFile(file.id);
+      triggerDownloadFromUrl(url, file.name);
     } catch {
       showNotification('Failed to download file', 'error');
     }
@@ -95,7 +81,6 @@ export default function SharedPage() {
                     folder={folder}
                     isOwner={false}
                     onClick={() => navigate(`/folder/${folder.id}`)}
-                    onDownload={() => handleFolderDownload(folder)}
                   />
                 ))}
               </List>
@@ -113,7 +98,6 @@ export default function SharedPage() {
                     file={file}
                     isOwner={false}
                     onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
-                    onDownload={() => handleFileDownload(file)}
                   />
                 ))}
               </List>

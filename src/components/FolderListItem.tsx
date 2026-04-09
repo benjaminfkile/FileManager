@@ -18,6 +18,9 @@ import {
 } from '@mui/icons-material';
 import { IFolder } from '../types';
 import { formatDate } from '../utils/formatters';
+import { downloadFolder } from '../api/folderService';
+import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { useNotification } from '../contexts/NotificationContext';
 
 export interface FolderListItemProps {
   folder: IFolder;
@@ -25,7 +28,6 @@ export interface FolderListItemProps {
   onClick: () => void;
   onRename?: () => void;
   onDelete?: () => void;
-  onDownload?: () => void;
   onShare?: () => void;
 }
 
@@ -35,11 +37,12 @@ export default function FolderListItem({
   onClick,
   onRename,
   onDelete,
-  onDownload,
   onShare,
 }: FolderListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const [downloading, setDownloading] = useState(false);
+  const { showNotification } = useNotification();
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -52,6 +55,19 @@ export default function FolderListItem({
   const handleAction = (callback?: () => void) => {
     handleClose();
     callback?.();
+  };
+
+  const handleDownload = async () => {
+    handleClose();
+    setDownloading(true);
+    try {
+      const blob = await downloadFolder(folder.id);
+      triggerDownloadFromBlob(blob, `${folder.name}.zip`);
+    } catch {
+      showNotification('Failed to download folder', 'error');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -83,9 +99,9 @@ export default function FolderListItem({
           <ListItemIcon><FolderOpen fontSize="small" /></ListItemIcon>
           Open
         </MenuItem>
-        <MenuItem onClick={() => handleAction(onDownload)}>
+        <MenuItem onClick={handleDownload} disabled={downloading}>
           <ListItemIcon><Download fontSize="small" /></ListItemIcon>
-          Download as zip
+          {downloading ? 'Downloading…' : 'Download as zip'}
         </MenuItem>
         {isOwner && (
           <MenuItem onClick={() => handleAction(onRename)}>

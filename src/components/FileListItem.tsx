@@ -27,12 +27,14 @@ import {
 import { IFile } from '../types';
 import { getMimeIconName, isPreviewable } from '../utils/fileTypeHelpers';
 import { formatFileSize, formatDate } from '../utils/formatters';
+import { downloadFile } from '../api/fileService';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { useNotification } from '../contexts/NotificationContext';
 
 export interface FileListItemProps {
   file: IFile;
   isOwner: boolean;
   onPreview?: () => void;
-  onDownload?: () => void;
   onRename?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
@@ -54,13 +56,14 @@ export default function FileListItem({
   file,
   isOwner,
   onPreview,
-  onDownload,
   onRename,
   onDelete,
   onShare,
 }: FileListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const [downloading, setDownloading] = useState(false);
+  const { showNotification } = useNotification();
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -73,6 +76,19 @@ export default function FileListItem({
   const handleAction = (callback?: () => void) => {
     handleClose();
     callback?.();
+  };
+
+  const handleDownload = async () => {
+    handleClose();
+    setDownloading(true);
+    try {
+      const { url } = await downloadFile(file.id);
+      triggerDownloadFromUrl(url, file.name);
+    } catch {
+      showNotification('Failed to download file', 'error');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const iconName = getMimeIconName(file.mime_type);
@@ -101,9 +117,9 @@ export default function FileListItem({
             Preview
           </MenuItem>
         )}
-        <MenuItem onClick={() => handleAction(onDownload)}>
+        <MenuItem onClick={handleDownload} disabled={downloading}>
           <ListItemIcon><Download fontSize="small" /></ListItemIcon>
-          Download
+          {downloading ? 'Downloading…' : 'Download'}
         </MenuItem>
         {isOwner && (
           <MenuItem onClick={() => handleAction(onRename)}>

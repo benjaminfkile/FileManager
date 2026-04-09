@@ -12,13 +12,13 @@ import {
   GetFolderResponse,
   renameFolder,
   deleteFolder,
-  downloadFolder,
 } from '../api/folderService';
 import {
   downloadFile,
   renameFile,
   deleteFile,
 } from '../api/fileService';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -126,21 +126,6 @@ export default function FolderPage() {
     }
   };
 
-  // Folder actions
-  const handleFolderDownload = async (f: IFolder) => {
-    try {
-      const blob = await downloadFolder(f.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${f.name}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      showNotification('Failed to download folder', 'error');
-    }
-  };
-
   const handleRename = async (newName: string) => {
     if (!renameTarget) return;
     try {
@@ -168,16 +153,6 @@ export default function FolderPage() {
       fetchFolder();
     } catch {
       showNotification('Failed to delete', 'error');
-    }
-  };
-
-  // File actions
-  const handleFileDownload = async (file: IFile) => {
-    try {
-      const response = await downloadFile(file.id);
-      window.open(response.url, '_blank');
-    } catch {
-      showNotification('Failed to download file', 'error');
     }
   };
 
@@ -214,7 +189,6 @@ export default function FolderPage() {
               onClick={() => navigate(`/folder/${sf.id}`)}
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
-              onDownload={() => handleFolderDownload(sf)}
               onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder' })}
             />
           ))}
@@ -224,7 +198,6 @@ export default function FolderPage() {
               file={file}
               isOwner={isOwner(file)}
               onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
-              onDownload={() => handleFileDownload(file)}
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}
               onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file' })}
@@ -282,9 +255,15 @@ export default function FolderPage() {
           fileId={previewTarget.id}
           fileName={previewTarget.name}
           onClose={() => setPreviewTarget(null)}
-          onDownload={() => {
+          onDownload={async () => {
             const file = files.find((f) => f.id === previewTarget.id);
-            if (file) handleFileDownload(file);
+            if (!file) return;
+            try {
+              const { url } = await downloadFile(file.id);
+              triggerDownloadFromUrl(url, file.name);
+            } catch {
+              showNotification('Failed to download file', 'error');
+            }
           }}
         />
       )}
