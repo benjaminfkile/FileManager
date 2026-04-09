@@ -42,7 +42,7 @@ export default function FolderPage() {
   const { currentUser } = useAuth();
   const { showNotification } = useNotification();
 
-  const [folder, setFolder] = useState<IFolder | null>(null);
+  const [, setFolder] = useState<IFolder | null>(null);
   const [subFolders, setSubFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);

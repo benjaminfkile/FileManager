@@ -26,7 +26,7 @@ import { restoreFolder, permanentDeleteFolder } from '../api/folderService';
 import { IFolder, IFile } from '../types';
 import { formatDate } from '../utils/formatters';
 import { formatFileSize } from '../utils/formatters';
-import { getMimeIconName, isPreviewable } from '../utils/fileTypeHelpers';
+import { getMimeIconName } from '../utils/fileTypeHelpers';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
