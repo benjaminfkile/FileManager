@@ -1,4 +1,4 @@
-import React from 'react';
+import { JSX } from 'react';
 import { render, screen } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
 
@@ -36,7 +36,7 @@ describe('ErrorBoundary', () => {
 
   it('shows the error message in development', () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true, configurable: true });
     try {
       render(
         <ErrorBoundary>
@@ -45,7 +45,7 @@ describe('ErrorBoundary', () => {
       );
       expect(screen.getByText('Test error')).toBeInTheDocument();
     } finally {
-      process.env.NODE_ENV = originalEnv;
+      Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true, configurable: true });
     }
   });
 

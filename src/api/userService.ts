@@ -16,8 +16,8 @@ export async function registerUser(payload: RegisterPayload): Promise<IUser> {
 
 // GET /api/users/me
 export async function getMe(): Promise<IUser> {
-  const { data } = await apiClient.get<IUser>('/api/users/me');
-  return data;
+  const { data } = await apiClient.get<{ data: IUser }>('/api/users/me');
+  return data.data;
 }
 
 // GET /api/users/search?q=<query>

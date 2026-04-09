@@ -27,26 +27,44 @@ describe('downloadHelpers', () => {
   });
 
   describe('triggerDownloadFromUrl', () => {
-    it('creates a temporary anchor with the given URL and clicks it', () => {
-      triggerDownloadFromUrl('https://cdn.example.com/signed-url');
+    it('fetches the URL, creates a blob object URL, and triggers download', async () => {
+      const fakeBlob = new Blob(['file content'], { type: 'image/png' });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        blob: jest.fn().mockResolvedValue(fakeBlob),
+      } as unknown as Response);
 
-      expect(document.createElement).toHaveBeenCalledWith('a');
-      expect(anchorEl.href).toBe('https://cdn.example.com/signed-url');
-      expect(appendChildSpy).toHaveBeenCalledWith(anchorEl);
+      await triggerDownloadFromUrl('https://cdn.example.com/signed-url', 'photo.png');
+
+      expect(global.fetch).toHaveBeenCalledWith('https://cdn.example.com/signed-url');
+      expect(URL.createObjectURL).toHaveBeenCalledWith(fakeBlob);
+      expect(anchorEl.download).toBe('photo.png');
       expect(anchorEl.click).toHaveBeenCalled();
-      expect(anchorEl.remove).toHaveBeenCalled();
     });
 
-    it('sets the download attribute when filename is provided', () => {
-      triggerDownloadFromUrl('https://cdn.example.com/signed-url', 'report.pdf');
+    it('falls back to window.open if fetch fails', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('network error'));
+      const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
 
-      expect(anchorEl.download).toBe('report.pdf');
+      await triggerDownloadFromUrl('https://cdn.example.com/signed-url', 'photo.png');
+
+      expect(openSpy).toHaveBeenCalledWith(
+        'https://cdn.example.com/signed-url',
+        '_blank',
+        'noopener,noreferrer',
+      );
     });
 
-    it('does not set download attribute when filename is omitted', () => {
-      triggerDownloadFromUrl('https://cdn.example.com/signed-url');
+    it('uses "download" as fallback filename when none provided', async () => {
+      const fakeBlob = new Blob(['data']);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        blob: jest.fn().mockResolvedValue(fakeBlob),
+      } as unknown as Response);
 
-      expect(anchorEl.download).toBe('');
+      await triggerDownloadFromUrl('https://cdn.example.com/signed-url');
+
+      expect(anchorEl.download).toBe('download');
     });
   });
 

@@ -58,7 +58,7 @@ const fakeSharedUser: ISharedUser = {
 describe('getRootFolders', () => {
   it('GETs /api/folders and returns IFolder[]', async () => {
     const folders: IFolder[] = [fakeFolder];
-    mock.onGet('/api/folders').reply(200, folders);
+    mock.onGet('/api/folders').reply(200, { folders });
 
     const result = await getRootFolders();
 
@@ -71,7 +71,7 @@ describe('getRootFolders', () => {
 describe('createFolder', () => {
   it('POSTs to /api/folders with the correct payload', async () => {
     const payload: CreateFolderPayload = { name: 'New Folder' };
-    mock.onPost('/api/folders').reply(201, fakeFolder);
+    mock.onPost('/api/folders').reply(201, { status: 'ok', error: false, data: fakeFolder });
 
     const result = await createFolder(payload);
 
@@ -82,7 +82,7 @@ describe('createFolder', () => {
 
   it('POSTs with parentFolderId when provided', async () => {
     const payload: CreateFolderPayload = { name: 'Sub Folder', parentFolderId: 'f-1' };
-    mock.onPost('/api/folders').reply(201, fakeFolder);
+    mock.onPost('/api/folders').reply(201, { status: 'ok', error: false, data: fakeFolder });
 
     await createFolder(payload);
 
@@ -110,7 +110,7 @@ describe('getFolder', () => {
 describe('renameFolder', () => {
   it('PATCHes /api/folders/:id with the new name', async () => {
     const updated = { ...fakeFolder, name: 'Renamed' };
-    mock.onPatch('/api/folders/f-1').reply(200, updated);
+    mock.onPatch('/api/folders/f-1').reply(200, { status: 'ok', error: false, data: updated });
 
     const result = await renameFolder('f-1', 'Renamed');
 
@@ -148,7 +148,7 @@ describe('downloadFolder', () => {
 describe('restoreFolder', () => {
   it('POSTs to /api/folders/:id/restore', async () => {
     const restored = { ...fakeFolder, is_deleted: false, deleted_at: null };
-    mock.onPost('/api/folders/f-1/restore').reply(200, restored);
+    mock.onPost('/api/folders/f-1/restore').reply(200, { status: 'ok', error: false, data: restored });
 
     const result = await restoreFolder('f-1');
 

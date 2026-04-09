@@ -22,14 +22,14 @@ export interface GetSharesResponse {
 
 // GET /api/folders
 export async function getRootFolders(): Promise<IFolder[]> {
-  const { data } = await apiClient.get<IFolder[]>('/api/folders');
-  return data;
+  const { data } = await apiClient.get<{ folders: IFolder[] }>('/api/folders');
+  return data.folders;
 }
 
 // POST /api/folders
 export async function createFolder(payload: CreateFolderPayload): Promise<IFolder> {
-  const { data } = await apiClient.post<IFolder>('/api/folders', payload);
-  return data;
+  const { data } = await apiClient.post<{ data: IFolder }>('/api/folders', payload);
+  return data.data;
 }
 
 // GET /api/folders/:id
@@ -40,8 +40,8 @@ export async function getFolder(id: string): Promise<GetFolderResponse> {
 
 // PATCH /api/folders/:id
 export async function renameFolder(id: string, name: string): Promise<IFolder> {
-  const { data } = await apiClient.patch<IFolder>(`/api/folders/${id}`, { name });
-  return data;
+  const { data } = await apiClient.patch<{ data: IFolder }>(`/api/folders/${id}`, { name });
+  return data.data;
 }
 
 // DELETE /api/folders/:id
@@ -59,8 +59,8 @@ export async function downloadFolder(id: string): Promise<Blob> {
 
 // POST /api/folders/:id/restore
 export async function restoreFolder(id: string): Promise<IFolder> {
-  const { data } = await apiClient.post<IFolder>(`/api/folders/${id}/restore`);
-  return data;
+  const { data } = await apiClient.post<{ data: IFolder }>(`/api/folders/${id}/restore`);
+  return data.data;
 }
 
 // DELETE /api/folders/:id/permanent

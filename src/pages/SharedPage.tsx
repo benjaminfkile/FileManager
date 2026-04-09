@@ -8,7 +8,7 @@ import {
 import { useNotification } from '../contexts/NotificationContext';
 import { getSharedWithMe } from '../api/sharedService';
 import { downloadFile } from '../api/fileService';
-import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -47,8 +47,8 @@ export default function SharedPage() {
 
   const handleFileDownload = async (file: IFile) => {
     try {
-      const { url } = await downloadFile(file.id);
-      triggerDownloadFromUrl(url, file.name);
+      const blob = await downloadFile(file.id);
+      triggerDownloadFromBlob(blob, file.name);
     } catch {
       showNotification('Failed to download file', 'error');
     }

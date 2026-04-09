@@ -18,7 +18,7 @@ import {
   renameFile,
   deleteFile,
 } from '../api/fileService';
-import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -259,8 +259,8 @@ export default function FolderPage() {
             const file = files.find((f) => f.id === previewTarget.id);
             if (!file) return;
             try {
-              const { url } = await downloadFile(file.id);
-              triggerDownloadFromUrl(url, file.name);
+              const blob = await downloadFile(file.id);
+              triggerDownloadFromBlob(blob, file.name);
             } catch {
               showNotification('Failed to download file', 'error');
             }

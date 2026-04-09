@@ -38,7 +38,7 @@ describe('registerUser', () => {
 
 describe('getMe', () => {
   it('GETs /api/users/me and returns IUser', async () => {
-    mock.onGet('/api/users/me').reply(200, fakeUser);
+    mock.onGet('/api/users/me').reply(200, { status: 'ok', error: false, data: fakeUser });
 
     const result = await getMe();
 

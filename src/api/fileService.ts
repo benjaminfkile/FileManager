@@ -13,10 +13,6 @@ export interface UploadFileResponse {
   file: IFile;
 }
 
-export interface DownloadFileResponse {
-  url: string;
-}
-
 export interface PreviewFileResponse {
   url: string;
   mimeType: string;
@@ -48,9 +44,11 @@ export async function uploadFile(payload: UploadFilePayload): Promise<UploadFile
   return data as UploadFileResponse;
 }
 
-// GET /api/files/:id/download
-export async function downloadFile(id: string): Promise<DownloadFileResponse> {
-  const { data } = await apiClient.get<DownloadFileResponse>(`/api/files/${id}/download`);
+// GET /api/files/:id/download — streams the file; returns a Blob ready for saving
+export async function downloadFile(id: string): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(`/api/files/${id}/download`, {
+    responseType: 'blob',
+  });
   return data;
 }
 
@@ -62,8 +60,8 @@ export async function previewFile(id: string): Promise<PreviewFileResponse> {
 
 // PATCH /api/files/:id
 export async function renameFile(id: string, name: string): Promise<IFile> {
-  const { data } = await apiClient.patch<IFile>(`/api/files/${id}`, { name });
-  return data;
+  const { data } = await apiClient.patch<{ data: IFile }>(`/api/files/${id}`, { name });
+  return data.data;
 }
 
 // DELETE /api/files/:id
@@ -73,8 +71,8 @@ export async function deleteFile(id: string): Promise<void> {
 
 // POST /api/files/:id/restore
 export async function restoreFile(id: string): Promise<IFile> {
-  const { data } = await apiClient.post<IFile>(`/api/files/${id}/restore`);
-  return data;
+  const { data } = await apiClient.post<{ data: IFile }>(`/api/files/${id}/restore`);
+  return data.data;
 }
 
 // DELETE /api/files/:id/permanent

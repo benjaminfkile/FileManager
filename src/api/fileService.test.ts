@@ -81,15 +81,16 @@ describe('uploadFile', () => {
 });
 
 describe('downloadFile', () => {
-  it('GETs /api/files/:id/download and returns { url }', async () => {
-    const response = { url: 'https://cdn.example.com/signed-url' };
-    mock.onGet('/api/files/file-1/download').reply(200, response);
+  it('GETs /api/files/:id/download with responseType blob and returns a Blob', async () => {
+    const fakeBlob = new Blob(['file bytes'], { type: 'image/png' });
+    mock.onGet('/api/files/file-1/download').reply(200, fakeBlob);
 
     const result = await downloadFile('file-1');
 
-    expect(result).toEqual(response);
+    expect(result).toBeInstanceOf(Blob);
     expect(mock.history.get).toHaveLength(1);
     expect(mock.history.get[0].url).toBe('/api/files/file-1/download');
+    expect(mock.history.get[0].responseType).toBe('blob');
   });
 });
 
@@ -113,7 +114,7 @@ describe('previewFile', () => {
 describe('renameFile', () => {
   it('PATCHes /api/files/:id with the new name', async () => {
     const updated = { ...fakeFile, name: 'renamed.pdf' };
-    mock.onPatch('/api/files/file-1').reply(200, updated);
+    mock.onPatch('/api/files/file-1').reply(200, { status: 'ok', error: false, data: updated });
 
     const result = await renameFile('file-1', 'renamed.pdf');
 
@@ -137,7 +138,7 @@ describe('deleteFile', () => {
 describe('restoreFile', () => {
   it('POSTs to /api/files/:id/restore', async () => {
     const restored = { ...fakeFile, is_deleted: false, deleted_at: null };
-    mock.onPost('/api/files/file-1/restore').reply(200, restored);
+    mock.onPost('/api/files/file-1/restore').reply(200, { status: 'ok', error: false, data: restored });
 
     const result = await restoreFile('file-1');
 
