@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileListItem, { FileListItemProps } from './FileListItem';
 import { IFile } from '../types';
+import { NotificationProvider } from '../contexts/NotificationContext';
 
 const baseFile: IFile = {
   id: '1',
@@ -24,7 +25,11 @@ function renderComponent(overrides: Partial<FileListItemProps> = {}) {
     isOwner: true,
     ...overrides,
   };
-  return render(<FileListItem {...props} />);
+  return render(
+    <NotificationProvider>
+      <FileListItem {...props} />
+    </NotificationProvider>
+  );
 }
 
 describe('FileListItem', () => {
@@ -64,15 +69,6 @@ describe('FileListItem', () => {
     expect(screen.getByText('Download')).toBeInTheDocument();
   });
 
-  it('calls onDownload when Download is clicked', async () => {
-    const onDownload = jest.fn();
-    renderComponent({ onDownload });
-    await userEvent.click(screen.getByLabelText('actions'));
-    await userEvent.click(screen.getByText('Download'));
-
-    expect(onDownload).toHaveBeenCalledTimes(1);
-  });
-
   it('calls onPreview when Preview is clicked', async () => {
     const onPreview = jest.fn();
     renderComponent({ onPreview });
@@ -110,8 +106,7 @@ describe('FileListItem', () => {
   });
 
   it('closes the menu after an action is clicked', async () => {
-    const onDownload = jest.fn();
-    renderComponent({ onDownload });
+    renderComponent();
     await userEvent.click(screen.getByLabelText('actions'));
     await userEvent.click(screen.getByText('Download'));
 

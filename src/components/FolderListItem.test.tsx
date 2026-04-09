@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FolderListItem, { FolderListItemProps } from './FolderListItem';
 import { IFolder } from '../types';
+import { NotificationProvider } from '../contexts/NotificationContext';
 
 const baseFolder: IFolder = {
   id: 'f1',
@@ -22,7 +23,11 @@ function renderComponent(overrides: Partial<FolderListItemProps> = {}) {
     onClick: jest.fn(),
     ...overrides,
   };
-  return render(<FolderListItem {...props} />);
+  return render(
+    <NotificationProvider>
+      <FolderListItem {...props} />
+    </NotificationProvider>
+  );
 }
 
 describe('FolderListItem', () => {
@@ -62,15 +67,6 @@ describe('FolderListItem', () => {
     expect(screen.queryByText('Delete')).not.toBeInTheDocument();
   });
 
-  it('calls onDownload when Download as zip is clicked', async () => {
-    const onDownload = jest.fn();
-    renderComponent({ onDownload });
-    await userEvent.click(screen.getByLabelText('actions'));
-    await userEvent.click(screen.getByText('Download as zip'));
-
-    expect(onDownload).toHaveBeenCalledTimes(1);
-  });
-
   it('calls onRename when Rename is clicked', async () => {
     const onRename = jest.fn();
     renderComponent({ onRename });
@@ -108,8 +104,7 @@ describe('FolderListItem', () => {
   });
 
   it('closes the menu after an action is clicked', async () => {
-    const onDownload = jest.fn();
-    renderComponent({ onDownload });
+    renderComponent();
     await userEvent.click(screen.getByLabelText('actions'));
     await userEvent.click(screen.getByText('Download as zip'));
 

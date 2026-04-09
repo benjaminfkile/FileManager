@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { getRootFolders, renameFolder, deleteFolder, downloadFolder } from '../api/folderService';
+import { getRootFolders, renameFolder, deleteFolder } from '../api/folderService';
 import { IFolder } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -58,20 +58,6 @@ export default function DrivePage() {
     }
   };
 
-  const handleDownload = async (folder: IFolder) => {
-    try {
-      const blob = await downloadFolder(folder.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${folder.name}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      showNotification('Failed to download folder', 'error');
-    }
-  };
-
   const handleRename = async (newName: string) => {
     if (!renameTarget) return;
     await renameFolder(renameTarget.id, newName);
@@ -112,7 +98,6 @@ export default function DrivePage() {
               onClick={() => navigate(`/folder/${folder.id}`)}
               onRename={() => setRenameTarget(folder)}
               onDelete={() => setDeleteTarget(folder)}
-              onDownload={() => handleDownload(folder)}
               onShare={() => setShareTarget(folder)}
             />
           ))}
