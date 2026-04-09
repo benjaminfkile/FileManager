@@ -1,36 +1,35 @@
 import MockAdapter from 'axios-mock-adapter';
-import apiClient, { API_KEY_STORAGE_KEY } from './apiClient';
+import apiClient from './apiClient';
+import { getIdToken } from '../lib/cognitoClient';
+
+jest.mock('../lib/cognitoClient');
+const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
 
 const mock = new MockAdapter(apiClient);
 
 afterEach(() => {
   mock.reset();
-  localStorage.clear();
+  jest.resetAllMocks();
 });
 
 describe('apiClient interceptor', () => {
-  it('attaches x-api-key header when localStorage has a key', async () => {
-    localStorage.setItem(API_KEY_STORAGE_KEY, 'test-api-key-123');
+  it('attaches Authorization Bearer header when a token is available', async () => {
+    mockGetIdToken.mockResolvedValue('test-jwt-token');
     mock.onGet('/test').reply(200, { ok: true });
 
     const response = await apiClient.get('/test');
 
     expect(response.status).toBe(200);
-    expect(mock.history.get[0].headers!['x-api-key']).toBe('test-api-key-123');
+    expect(mock.history.get[0].headers!['Authorization']).toBe('Bearer test-jwt-token');
   });
 
-  it('does not attach x-api-key header when localStorage returns null', async () => {
+  it('does not attach Authorization header when no token is available', async () => {
+    mockGetIdToken.mockResolvedValue(null);
     mock.onGet('/test').reply(200, { ok: true });
 
     const response = await apiClient.get('/test');
 
     expect(response.status).toBe(200);
-    expect(mock.history.get[0].headers!['x-api-key']).toBeUndefined();
-  });
-});
-
-describe('API_KEY_STORAGE_KEY', () => {
-  it('equals "fm_api_key"', () => {
-    expect(API_KEY_STORAGE_KEY).toBe('fm_api_key');
+    expect(mock.history.get[0].headers!['Authorization']).toBeUndefined();
   });
 });
