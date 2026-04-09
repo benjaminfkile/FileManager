@@ -65,7 +65,7 @@ export default function RegisterPage() {
         username: username.trim(),
         api_key: apiKey,
       });
-      await login(apiKey);
+      await login(username.trim(), apiKey);
       navigate('/');
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { errorMsg?: string } } };

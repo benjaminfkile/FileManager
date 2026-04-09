@@ -1,39 +1,37 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { IUser } from '../types';
 import { getMe } from '../api/userService';
-import { API_KEY_STORAGE_KEY } from '../api/apiClient';
+import { signIn, signOut, getIdToken } from '../lib/cognitoClient';
 
 interface AuthContextValue {
-  apiKey: string | null;
   currentUser: IUser | null;
   isLoading: boolean;
-  login: (apiKey: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY));
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(() => !!localStorage.getItem(API_KEY_STORAGE_KEY));
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!apiKey) return;
-
     let cancelled = false;
 
-    setIsLoading(true);
-    getMe()
+    getIdToken()
+      .then((token) => {
+        if (cancelled || !token) return null;
+        return getMe();
+      })
       .then((user) => {
-        if (!cancelled) {
+        if (!cancelled && user) {
           setCurrentUser(user);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          localStorage.removeItem(API_KEY_STORAGE_KEY);
-          setApiKey(null);
+          signOut();
           setCurrentUser(null);
         }
       })
@@ -46,24 +44,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const login = useCallback(async (key: string) => {
-    localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    setApiKey(key);
+  const login = useCallback(async (email: string, password: string) => {
+    await signIn(email, password);
     const user = await getMe();
     setCurrentUser(user);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(API_KEY_STORAGE_KEY);
-    setApiKey(null);
+    signOut();
     setCurrentUser(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ apiKey, currentUser, isLoading, login, logout }),
-    [apiKey, currentUser, isLoading, login, logout],
+    () => ({ currentUser, isLoading, login, logout }),
+    [currentUser, isLoading, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

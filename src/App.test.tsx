@@ -9,7 +9,6 @@ jest.mock('./contexts/AuthContext', () => ({
   useAuth: () => ({
     isLoading: false,
     currentUser: { id: '1', username: 'testuser', first_name: 'Test', last_name: 'User' },
-    apiKey: 'test-key',
     login: jest.fn(),
     logout: jest.fn(),
   }),
