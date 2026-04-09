@@ -6,11 +6,15 @@ import App from './App';
 jest.mock('./contexts/AuthContext', () => ({
   useAuth: () => ({
     isLoading: false,
-    currentUser: { id: '1', username: 'testuser', firstName: 'Test', lastName: 'User' },
+    currentUser: { id: '1', username: 'testuser', first_name: 'Test', last_name: 'User' },
     apiKey: 'test-key',
     login: jest.fn(),
     logout: jest.fn(),
   }),
+}));
+
+jest.mock('./theme/ThemeProvider', () => ({
+  useThemeMode: () => ({ mode: 'light', toggleMode: jest.fn() }),
 }));
 
 test('renders DrivePage at root when authenticated', () => {
