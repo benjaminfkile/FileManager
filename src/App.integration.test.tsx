@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { API_KEY_STORAGE_KEY } from './api/apiClient';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -12,6 +11,7 @@ import { IUser } from './types';
 // Mock service modules
 jest.mock('./api/userService');
 jest.mock('./api/folderService');
+jest.mock('./lib/cognitoClient');
 jest.mock('./api/setupInterceptors', () => ({
   setupInterceptors: () => 0,
   ejectInterceptor: () => {},
@@ -19,6 +19,10 @@ jest.mock('./api/setupInterceptors', () => ({
 
 import { getMe, registerUser } from './api/userService';
 import { getRootFolders } from './api/folderService';
+import { getIdToken, signOut } from './lib/cognitoClient';
+
+const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
+const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
 
 const mockGetMe = getMe as jest.MockedFunction<typeof getMe>;
 const mockRegisterUser = registerUser as jest.MockedFunction<typeof registerUser>;
@@ -74,7 +78,7 @@ describe('App integration tests', () => {
 
   // ---- Scenario 2: Authenticated user sees the drive page ----
   test('authenticated user sees the drive page', async () => {
-    localStorage.setItem(API_KEY_STORAGE_KEY, 'fake-api-key-123');
+    mockGetIdToken.mockResolvedValue('fake-cognito-token');
 
     mockGetMe.mockResolvedValue(fakeUser);
     mockGetRootFolders.mockResolvedValue([]);
@@ -126,7 +130,7 @@ describe('App integration tests', () => {
 
   // ---- Scenario 4: Logout flow ----
   test('logout flow clears auth and navigates to /register', async () => {
-    localStorage.setItem(API_KEY_STORAGE_KEY, 'fake-api-key-123');
+    mockGetIdToken.mockResolvedValue('fake-cognito-token');
 
     mockGetMe.mockResolvedValue(fakeUser);
     mockGetRootFolders.mockResolvedValue([]);
@@ -151,7 +155,7 @@ describe('App integration tests', () => {
       expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument();
     });
 
-    // localStorage key should be cleared
-    expect(localStorage.getItem(API_KEY_STORAGE_KEY)).toBeNull();
+    // Cognito signOut should have been called
+    expect(mockSignOut).toHaveBeenCalled();
   });
 });
