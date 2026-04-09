@@ -3,18 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   List,
-  Fab,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  Snackbar,
-  Alert,
 } from '@mui/material';
-import {
-  Add,
-  CreateNewFolder,
-  UploadFile,
-} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRootFolders, renameFolder, deleteFolder, downloadFolder } from '../api/folderService';
@@ -23,7 +12,7 @@ import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import FolderListItem from '../components/FolderListItem';
-import CreateFolderDialog from '../components/CreateFolderDialog';
+import DriveSpeedDial from '../components/DriveSpeedDial';
 import RenameDialog from '../components/RenameDialog';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import ShareDialog from '../components/ShareDialog';
@@ -36,12 +25,6 @@ export default function DrivePage() {
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // FAB menu
-  const [fabAnchor, setFabAnchor] = useState<null | HTMLElement>(null);
-
-  // Create folder dialog
-  const [createOpen, setCreateOpen] = useState(false);
-
   // Rename dialog
   const [renameTarget, setRenameTarget] = useState<IFolder | null>(null);
 
@@ -50,9 +33,6 @@ export default function DrivePage() {
 
   // Share dialog
   const [shareTarget, setShareTarget] = useState<IFolder | null>(null);
-
-  // Upload info snackbar
-  const [uploadInfoOpen, setUploadInfoOpen] = useState(false);
 
   const fetchFolders = useCallback(async () => {
     setLoading(true);
@@ -139,60 +119,15 @@ export default function DrivePage() {
         </List>
       )}
 
-      {/* Floating Action Button */}
-      <Fab
-        color="primary"
-        aria-label="add"
-        onClick={(e) => setFabAnchor(e.currentTarget)}
-        sx={{ position: 'fixed', bottom: 24, right: 24 }}
-      >
-        <Add />
-      </Fab>
-
-      <Menu
-        anchorEl={fabAnchor}
-        open={Boolean(fabAnchor)}
-        onClose={() => setFabAnchor(null)}
-      >
-        <MenuItem
-          onClick={() => {
-            setFabAnchor(null);
-            setUploadInfoOpen(true);
-          }}
-        >
-          <ListItemIcon><UploadFile fontSize="small" /></ListItemIcon>
-          Upload file
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setFabAnchor(null);
-            setCreateOpen(true);
-          }}
-        >
-          <ListItemIcon><CreateNewFolder fontSize="small" /></ListItemIcon>
-          Create folder
-        </MenuItem>
-      </Menu>
-
-      {/* Upload info snackbar */}
-      <Snackbar
-        open={uploadInfoOpen}
-        autoHideDuration={4000}
-        onClose={() => setUploadInfoOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="info" onClose={() => setUploadInfoOpen(false)}>
-          Open a folder first to upload files
-        </Alert>
-      </Snackbar>
-
-      {/* Create Folder Dialog */}
-      <CreateFolderDialog
-        open={createOpen}
-        parentFolderId={null}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => {
+      {/* SpeedDial FAB */}
+      <DriveSpeedDial
+        folderId={null}
+        onFolderCreated={() => {
           showNotification('Folder created');
+          fetchFolders();
+        }}
+        onFileUploaded={() => {
+          showNotification('File uploaded');
           fetchFolders();
         }}
       />

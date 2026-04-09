@@ -122,31 +122,31 @@ describe('DrivePage', () => {
     expect(mockedNavigate).toHaveBeenCalledWith('/folder/f1');
   });
 
-  it('opens create folder dialog from FAB', async () => {
+  it('opens create folder dialog from SpeedDial', async () => {
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Documents')).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByLabelText('add'));
-    await userEvent.click(screen.getByText('Create folder'));
+    await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New folder' }));
 
     expect(screen.getByText('New Folder')).toBeInTheDocument();
   });
 
-  it('shows info message when upload file is clicked from FAB', async () => {
+  it('opens upload dialog from SpeedDial', async () => {
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Documents')).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByLabelText('add'));
-    await userEvent.click(screen.getByText('Upload file'));
+    await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Upload file' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Open a folder first to upload files')).toBeInTheDocument();
+      expect(screen.getByText('Upload File')).toBeInTheDocument();
     });
   });
 });
