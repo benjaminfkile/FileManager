@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from './ErrorBoundary';
 import {
   AppBar,
   Avatar,
@@ -140,7 +141,9 @@ export default function AppShell() {
         }}
       >
         <Toolbar />
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </Box>
     </Box>
   );
