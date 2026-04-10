@@ -15,7 +15,7 @@ export default function ProtectedRoute() {
   }
 
   if (!currentUser) {
-    return <Navigate to="/register" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;
