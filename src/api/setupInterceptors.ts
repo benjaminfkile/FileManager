@@ -9,7 +9,7 @@ export function setupInterceptors(
     (error) => {
       if (error.response?.status === 401) {
         logout();
-        navigate('/register');
+        navigate('/login');
       }
       return Promise.reject(error);
     },
