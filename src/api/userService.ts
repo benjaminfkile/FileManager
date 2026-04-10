@@ -21,8 +21,8 @@ export async function getMe(): Promise<IUser> {
 
 // GET /api/users/search?q=<query>
 export async function searchUsers(query: string): Promise<IUser[]> {
-  const { data } = await apiClient.get<IUser[]>('/api/users/search', {
+  const { data } = await apiClient.get<{ data: IUser[] }>('/api/users/search', {
     params: { q: query },
   });
-  return data;
+  return data.data;
 }
