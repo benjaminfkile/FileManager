@@ -23,7 +23,6 @@ describe('registerUser', () => {
       first_name: 'John',
       last_name: 'Doe',
       username: 'johndoe',
-      api_key: 'secret-key',
     };
 
     mock.onPost('/api/users/register').reply(201, fakeUser);

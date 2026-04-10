@@ -5,7 +5,6 @@ export interface RegisterPayload {
   first_name: string;
   last_name: string;
   username: string;
-  api_key: string;
 }
 
 // POST /api/users/register — no auth header needed
