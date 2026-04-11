@@ -66,6 +66,17 @@ export default function FileListItem({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const [downloading, setDownloading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: file.id, type: 'file' }));
+    e.dataTransfer.effectAllowed = 'move';
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
   const { showNotification } = useNotification();
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
@@ -100,6 +111,10 @@ export default function FileListItem({
 
   return (
     <ListItem
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      sx={{ opacity: isDragging ? 0.5 : 1, cursor: 'grab' }}
       secondaryAction={
         <IconButton edge="end" aria-label="actions" onClick={handleOpen}>
           <MoreVert />

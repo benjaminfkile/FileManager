@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileListItem, { FileListItemProps } from './FileListItem';
 import { IFile } from '../types';
@@ -142,6 +142,25 @@ describe('FileListItem', () => {
     await userEvent.click(screen.getByText('Move to...'));
 
     expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('has draggable attribute on the list item', () => {
+    renderComponent();
+    const listItem = screen.getByRole('listitem');
+    expect(listItem).toHaveAttribute('draggable', 'true');
+  });
+
+  it('sets correct drag data on dragStart', () => {
+    renderComponent();
+    const listItem = screen.getByRole('listitem');
+    const mockSetData = jest.fn();
+    fireEvent.dragStart(listItem, {
+      dataTransfer: { setData: mockSetData, effectAllowed: '' },
+    });
+    expect(mockSetData).toHaveBeenCalledWith(
+      'application/json',
+      JSON.stringify({ id: baseFile.id, type: 'file' }),
+    );
   });
 
   it('closes the menu after an action is clicked', async () => {
