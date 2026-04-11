@@ -11,6 +11,7 @@ import {
   shareFile,
   unshareFile,
   getFileShares,
+  moveFile,
 } from './fileService';
 import { IFile, ISharedUser } from '../types';
 
@@ -193,5 +194,26 @@ describe('getFileShares', () => {
     expect(result).toEqual(response);
     expect(mock.history.get).toHaveLength(1);
     expect(mock.history.get[0].url).toBe('/api/files/file-1/shares');
+  });
+});
+
+describe('moveFile', () => {
+  it('PATCHes /api/files/:id/move with folderId and returns the IFile', async () => {
+    mock.onPatch('/api/files/file-1/move').reply(200, { file: fakeFile });
+
+    const result = await moveFile('file-1', 'folder-1');
+
+    expect(result).toEqual(fakeFile);
+    expect(mock.history.patch).toHaveLength(1);
+    expect(JSON.parse(mock.history.patch[0].data)).toEqual({ folderId: 'folder-1' });
+  });
+
+  it('PATCHes with folderId null to move to root', async () => {
+    mock.onPatch('/api/files/file-1/move').reply(200, { file: fakeFile });
+
+    const result = await moveFile('file-1', null);
+
+    expect(result).toEqual(fakeFile);
+    expect(JSON.parse(mock.history.patch[0].data)).toEqual({ folderId: null });
   });
 });
