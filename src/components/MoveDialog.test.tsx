@@ -6,6 +6,11 @@ import { getRootFolders, getFolder } from '../api/folderService';
 import { IFolder } from '../types';
 import { NotificationProvider } from '../contexts/NotificationContext';
 
+jest.mock('../lib/cognitoClient', () => ({
+  getIdToken: () => Promise.resolve('fake-token'),
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+}));
 jest.mock('../api/folderService');
 const mockedGetRootFolders = getRootFolders as jest.MockedFunction<typeof getRootFolders>;
 const mockedGetFolder = getFolder as jest.MockedFunction<typeof getFolder>;
@@ -164,6 +169,43 @@ describe('MoveDialog', () => {
     renderDialog();
     await waitFor(() => {
       expect(screen.getByText('Failed to load folders')).toBeInTheDocument();
+    });
+  });
+
+  it('shows API error message inline when onMove rejects with 403', async () => {
+    const axiosError = {
+      response: { status: 403, data: { errorMsg: 'You do not own the target folder' } },
+    };
+    const onMove = jest.fn().mockRejectedValue(axiosError);
+    const onClose = jest.fn();
+    renderDialog({ currentFolderId: 'some-other-folder', onMove, onClose });
+
+    await waitFor(() => {
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move here' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('You do not own the target folder')).toBeInTheDocument();
+    });
+    // Dialog should stay open
+    expect(screen.getByText('Move "report.pdf"')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows generic fallback when onMove rejects without errorMsg', async () => {
+    const onMove = jest.fn().mockRejectedValue(new Error('network error'));
+    renderDialog({ currentFolderId: 'some-other-folder', onMove });
+
+    await waitFor(() => {
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move here' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to move')).toBeInTheDocument();
     });
   });
 });
