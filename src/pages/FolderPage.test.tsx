@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import FolderPage from './FolderPage';
@@ -338,6 +338,60 @@ describe('FolderPage', () => {
     await userEvent.click(actionButtons[0]);
     await userEvent.click(screen.getByText('Move to...'));
     await userEvent.click(screen.getByText('Confirm Move'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to move')).toBeInTheDocument();
+    });
+  });
+
+  it('calls moveFile when a file is dropped on a subfolder', async () => {
+    mockedMoveFile.mockResolvedValue(files[0]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Work')).toBeInTheDocument());
+
+    const folderItem = screen.getByText('Work').closest('li')!;
+    const dragData = JSON.stringify({ id: 'file-xyz', type: 'file' });
+    fireEvent.drop(folderItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+
+    await waitFor(() => {
+      expect(mockedMoveFile).toHaveBeenCalledWith('file-xyz', subFolders[0].id);
+    });
+    await waitFor(() => {
+      expect(mockedGetFolder.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('calls moveFolder when a folder is dropped on a subfolder', async () => {
+    mockedMoveFolder.mockResolvedValue(subFolders[0]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Work')).toBeInTheDocument());
+
+    const folderItem = screen.getByText('Work').closest('li')!;
+    const dragData = JSON.stringify({ id: 'folder-abc', type: 'folder' });
+    fireEvent.drop(folderItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+
+    await waitFor(() => {
+      expect(mockedMoveFolder).toHaveBeenCalledWith('folder-abc', subFolders[0].id);
+    });
+    await waitFor(() => {
+      expect(mockedGetFolder.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('shows error notification when a drop move fails', async () => {
+    mockedMoveFile.mockRejectedValueOnce(new Error('Move failed'));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Work')).toBeInTheDocument());
+
+    const folderItem = screen.getByText('Work').closest('li')!;
+    const dragData = JSON.stringify({ id: 'file-xyz', type: 'file' });
+    fireEvent.drop(folderItem, {
+      dataTransfer: { getData: () => dragData },
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Failed to move')).toBeInTheDocument();
