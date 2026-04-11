@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
 jest.mock('./components/InterceptorSetup', () => () => null);
+jest.mock('./pages/DrivePage', () => () => <div>DrivePage</div>);
+jest.mock('./pages/FolderPage', () => () => <div>FolderPage</div>);
+jest.mock('./pages/SharedPage', () => () => <div>SharedPage</div>);
+jest.mock('./pages/RecycleBinPage', () => () => <div>RecycleBinPage</div>);
 
 jest.mock('./contexts/AuthContext', () => ({
   useAuth: () => ({

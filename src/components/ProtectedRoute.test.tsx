@@ -13,7 +13,7 @@ function renderWithRouter(initialRoute = '/') {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
       <Routes>
-        <Route path="/register" element={<div>RegisterPage</div>} />
+        <Route path="/login" element={<div>LoginPage</div>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<div>HomePage</div>} />
         </Route>
@@ -29,10 +29,10 @@ describe('ProtectedRoute', () => {
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
-  it('redirects to /register when unauthenticated', () => {
+  it('redirects to /login when unauthenticated', () => {
     mockUseAuth.mockReturnValue({ isLoading: false, currentUser: null });
     renderWithRouter();
-    expect(screen.getByText('RegisterPage')).toBeInTheDocument();
+    expect(screen.getByText('LoginPage')).toBeInTheDocument();
     expect(screen.queryByText('HomePage')).not.toBeInTheDocument();
   });
 

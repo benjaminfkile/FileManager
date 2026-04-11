@@ -51,7 +51,7 @@ describe('searchUsers', () => {
   it('GETs /api/users/search?q=foo and returns IUser[]', async () => {
     const users: IUser[] = [fakeUser];
 
-    mock.onGet('/api/users/search', { params: { q: 'foo' } }).reply(200, users);
+    mock.onGet('/api/users/search', { params: { q: 'foo' } }).reply(200, { data: users });
 
     const result = await searchUsers('foo');
 

@@ -11,6 +11,7 @@ import { IUser } from './types';
 // Mock service modules
 jest.mock('./api/userService');
 jest.mock('./api/folderService');
+jest.mock('./api/fileService');
 jest.mock('./lib/cognitoClient');
 jest.mock('./api/setupInterceptors', () => ({
   setupInterceptors: () => 0,
@@ -19,14 +20,19 @@ jest.mock('./api/setupInterceptors', () => ({
 
 import { getMe, registerUser } from './api/userService';
 import { getRootFolders } from './api/folderService';
-import { getIdToken, signOut } from './lib/cognitoClient';
+import { getRootFiles } from './api/fileService';
+import { getIdToken, signOut, signUp, confirmSignUp, signIn } from './lib/cognitoClient';
 
 const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
 const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
+const mockSignUp = signUp as jest.MockedFunction<typeof signUp>;
+const mockConfirmSignUp = confirmSignUp as jest.MockedFunction<typeof confirmSignUp>;
+const mockSignIn = signIn as jest.MockedFunction<typeof signIn>;
 
 const mockGetMe = getMe as jest.MockedFunction<typeof getMe>;
 const mockRegisterUser = registerUser as jest.MockedFunction<typeof registerUser>;
 const mockGetRootFolders = getRootFolders as jest.MockedFunction<typeof getRootFolders>;
+const mockGetRootFiles = getRootFiles as jest.MockedFunction<typeof getRootFiles>;
 
 const fakeUser: IUser = {
   id: 'u1',
@@ -53,23 +59,25 @@ function renderApp(initialRoute = '/') {
 beforeEach(() => {
   jest.resetAllMocks();
   localStorage.clear();
+  mockGetIdToken.mockResolvedValue(null); // default: unauthenticated
+  mockGetRootFolders.mockResolvedValue([]);
+  mockGetRootFiles.mockResolvedValue([]);
   // Ensure desktop viewport so permanent drawer renders
   Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
   window.dispatchEvent(new Event('resize'));
 });
 
 describe('App integration tests', () => {
-  // ---- Scenario 1: Unauthenticated user is redirected to /register ----
-  test('unauthenticated user is redirected to /register', async () => {
+  // ---- Scenario 1: Unauthenticated user is redirected to /login ----
+  test('unauthenticated user is redirected to /login', async () => {
+    // mockGetIdToken defaults to null (set in beforeEach)
     renderApp('/');
 
-    // Registration form should render
+    // Login form should render
     await waitFor(() => {
-      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     });
-    expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
 
     // Protected content should NOT be visible
     expect(screen.queryByText('My Files')).not.toBeInTheDocument();
@@ -79,9 +87,8 @@ describe('App integration tests', () => {
   // ---- Scenario 2: Authenticated user sees the drive page ----
   test('authenticated user sees the drive page', async () => {
     mockGetIdToken.mockResolvedValue('fake-cognito-token');
-
     mockGetMe.mockResolvedValue(fakeUser);
-    mockGetRootFolders.mockResolvedValue([]);
+    // getRootFolders and getRootFiles already mocked in beforeEach
 
     renderApp('/');
 
@@ -105,20 +112,29 @@ describe('App integration tests', () => {
 
   // ---- Scenario 3: Registration flow ----
   test('registration flow navigates to / after success', async () => {
+    mockSignUp.mockResolvedValue(undefined);
+    mockConfirmSignUp.mockResolvedValue(undefined);
+    mockSignIn.mockResolvedValue('fake-token');
     mockRegisterUser.mockResolvedValue(fakeUser);
     mockGetMe.mockResolvedValue(fakeUser);
-    mockGetRootFolders.mockResolvedValue([]);
+    // getRootFolders and getRootFiles already mocked in beforeEach
 
     renderApp('/register');
 
-    // Fill in form fields
+    // Step 1: Fill in signup form
     await userEvent.type(screen.getByLabelText(/first name/i), 'Alice');
     await userEvent.type(screen.getByLabelText(/last name/i), 'Smith');
+    await userEvent.type(screen.getByLabelText(/email/i), 'alice@example.com');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'SecurePass123!');
     await userEvent.type(screen.getByLabelText(/username/i), 'asmith');
-    await userEvent.type(screen.getByLabelText('API Key'), 'supersecret1234');
+    await userEvent.click(screen.getByRole('button', { name: /sign up/i }));
 
-    // Submit
-    await userEvent.click(screen.getByRole('button', { name: /register/i }));
+    // Step 2: Enter confirmation code
+    await waitFor(() => {
+      expect(screen.getByLabelText(/confirmation code/i)).toBeInTheDocument();
+    });
+    await userEvent.type(screen.getByLabelText(/confirmation code/i), '123456');
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     // After successful registration, we should see the drive page
     await waitFor(() => {
@@ -131,9 +147,8 @@ describe('App integration tests', () => {
   // ---- Scenario 4: Logout flow ----
   test('logout flow clears auth and navigates to /register', async () => {
     mockGetIdToken.mockResolvedValue('fake-cognito-token');
-
     mockGetMe.mockResolvedValue(fakeUser);
-    mockGetRootFolders.mockResolvedValue([]);
+    // getRootFolders and getRootFiles already mocked in beforeEach
 
     renderApp('/');
 
@@ -150,9 +165,9 @@ describe('App integration tests', () => {
     const logoutItem = await screen.findByText('Logout');
     await userEvent.click(logoutItem);
 
-    // Should navigate to register page
+    // Should navigate to /register (sign up page)
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
     });
 
     // Cognito signOut should have been called

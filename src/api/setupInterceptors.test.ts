@@ -20,13 +20,13 @@ afterEach(() => {
 });
 
 describe('setupInterceptors', () => {
-  it('calls logout and navigates to /register on 401', async () => {
+  it('calls logout and navigates to /login on 401', async () => {
     mock.onGet('/test').reply(401);
 
     await expect(apiClient.get('/test')).rejects.toThrow();
 
     expect(logout).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenCalledWith('/register');
+    expect(navigate).toHaveBeenCalledWith('/login');
   });
 
   it('does not call logout or navigate on 500', async () => {
