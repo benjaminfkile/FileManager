@@ -23,6 +23,7 @@ import {
   DriveFileRenameOutline,
   Share,
   Delete,
+  DriveFileMove,
 } from '@mui/icons-material';
 import { IFile } from '../types';
 import { getMimeIconName, isPreviewable } from '../utils/fileTypeHelpers';
@@ -38,6 +39,7 @@ export interface FileListItemProps {
   onRename?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
+  onMove?: () => void;
 }
 
 const iconMap: Record<string, React.ElementType> = {
@@ -59,6 +61,7 @@ export default function FileListItem({
   onRename,
   onDelete,
   onShare,
+  onMove,
 }: FileListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -125,6 +128,12 @@ export default function FileListItem({
           <MenuItem onClick={() => handleAction(onRename)}>
             <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
             Rename
+          </MenuItem>
+        )}
+        {isOwner && onMove && (
+          <MenuItem onClick={() => handleAction(onMove)}>
+            <ListItemIcon><DriveFileMove fontSize="small" /></ListItemIcon>
+            Move to...
           </MenuItem>
         )}
         {isOwner && (

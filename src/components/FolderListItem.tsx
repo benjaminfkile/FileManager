@@ -15,6 +15,7 @@ import {
   DriveFileRenameOutline,
   Share,
   Delete,
+  DriveFileMove,
 } from '@mui/icons-material';
 import { IFolder } from '../types';
 import { formatDate } from '../utils/formatters';
@@ -29,6 +30,7 @@ export interface FolderListItemProps {
   onRename?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
+  onMove?: () => void;
 }
 
 export default function FolderListItem({
@@ -38,6 +40,7 @@ export default function FolderListItem({
   onRename,
   onDelete,
   onShare,
+  onMove,
 }: FolderListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -107,6 +110,12 @@ export default function FolderListItem({
           <MenuItem onClick={() => handleAction(onRename)}>
             <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
             Rename
+          </MenuItem>
+        )}
+        {isOwner && onMove && (
+          <MenuItem onClick={() => handleAction(onMove)}>
+            <ListItemIcon><DriveFileMove fontSize="small" /></ListItemIcon>
+            Move to...
           </MenuItem>
         )}
         {isOwner && (
