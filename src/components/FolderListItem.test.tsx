@@ -38,6 +38,18 @@ function renderComponent(overrides: Partial<FolderListItemProps> = {}) {
 }
 
 describe('FolderListItem', () => {
+  it('renders the regular folder icon when isOwner is true', () => {
+    renderComponent({ isOwner: true });
+    expect(screen.getByTestId('FolderIcon')).toBeInTheDocument();
+    expect(screen.queryByTestId('FolderSharedIcon')).not.toBeInTheDocument();
+  });
+
+  it('renders the shared folder icon when isOwner is false', () => {
+    renderComponent({ isOwner: false });
+    expect(screen.getByTestId('FolderSharedIcon')).toBeInTheDocument();
+    expect(screen.queryByTestId('FolderIcon')).not.toBeInTheDocument();
+  });
+
   it('renders folder name and creation date', () => {
     renderComponent();
     expect(screen.getByText('Documents')).toBeInTheDocument();
