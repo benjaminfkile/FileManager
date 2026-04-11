@@ -33,19 +33,59 @@ export async function getRootFiles(): Promise<IFile[]> {
   return data.files;
 }
 
-// POST /api/files/upload
+// Upload via presigned S3 URL for real byte-level progress
 export async function uploadFile(payload: UploadFilePayload): Promise<UploadFileResponse> {
-  const formData = new FormData();
-  formData.append('file', payload.file);
-  if (payload.folderId) {
-    formData.append('folderId', payload.folderId);
-  }
-  if (payload.name) {
-    formData.append('name', payload.name);
-  }
-  const { data } = await apiClient.post('/api/files/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: payload.onUploadProgress,
+  // Step 1 — Get a presigned URL
+  const { data: presignData } = await apiClient.get<{
+    presignedUrl: string;
+    s3Key: string;
+    fileId: string;
+  }>('/api/files/presign-upload', {
+    params: {
+      name: payload.file.name,
+      mimeType: payload.file.type || 'application/octet-stream',
+      sizeBytes: payload.file.size,
+      folderId: payload.folderId,
+    },
+  });
+
+  // Step 2 — Upload directly to S3 via XMLHttpRequest for progress events
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    if (payload.onUploadProgress) {
+      xhr.upload.onprogress = (event: ProgressEvent) => {
+        if (event.lengthComputable) {
+          payload.onUploadProgress!({
+            loaded: event.loaded,
+            total: event.total,
+            progress: event.loaded / event.total,
+            bytes: event.loaded,
+            rate: undefined,
+            estimated: undefined,
+            upload: true,
+            download: false,
+            event,
+          } as import('axios').AxiosProgressEvent);
+        }
+      };
+    }
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`S3 upload failed: ${xhr.status}`));
+    xhr.onerror = () => reject(new Error('Upload failed — network error'));
+    xhr.open('PUT', presignData.presignedUrl);
+    xhr.setRequestHeader('Content-Type', payload.file.type || 'application/octet-stream');
+    xhr.send(payload.file);
+  });
+
+  // Step 3 — Register the file in the DB
+  const name = payload.name ?? payload.file.name;
+  const { data } = await apiClient.post('/api/files/register', {
+    fileId: presignData.fileId,
+    name,
+    s3Key: presignData.s3Key,
+    sizeBytes: payload.file.size,
+    mimeType: payload.file.type || 'application/octet-stream',
+    folderId: payload.folderId ?? null,
   });
   return data as UploadFileResponse;
 }
