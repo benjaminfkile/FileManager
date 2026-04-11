@@ -10,6 +10,7 @@ import {
 import {
   MoreVert,
   Folder,
+  FolderShared,
   FolderOpen,
   Download,
   DriveFileRenameOutline,
@@ -143,7 +144,11 @@ export default function FolderListItem({
       }
     >
       <ListItemIcon>
-        <Folder sx={{ color: 'amber.A700' }} />
+        {isOwner ? (
+          <Folder sx={{ color: 'amber.A700' }} data-testid="FolderIcon" />
+        ) : (
+          <FolderShared sx={{ color: 'amber.A700' }} data-testid="FolderSharedIcon" />
+        )}
       </ListItemIcon>
       <ListItemText
         primary={folder.name}
