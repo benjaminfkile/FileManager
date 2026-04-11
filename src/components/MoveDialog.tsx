@@ -153,7 +153,7 @@ export default function MoveDialog({
         </Breadcrumbs>
 
         {loading && (
-          <Box display="flex" justifyContent="center" py={3}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
             <CircularProgress />
           </Box>
         )}

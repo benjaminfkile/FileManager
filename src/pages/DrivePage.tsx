@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -30,6 +30,7 @@ export default function DrivePage() {
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const initialLoadDone = useRef(false);
 
   // Rename dialog
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
@@ -52,7 +53,7 @@ export default function DrivePage() {
   } | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const [fetchedFolders, fetchedFiles] = await Promise.all([
         getRootFolders(),
@@ -60,6 +61,7 @@ export default function DrivePage() {
       ]);
       setFolders(fetchedFolders);
       setFiles(fetchedFiles);
+      initialLoadDone.current = true;
     } catch {
       showNotification('Failed to load files', 'error');
     } finally {

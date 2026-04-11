@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -50,6 +50,7 @@ export default function FolderPage() {
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const initialLoadDone = useRef(false);
 
   // Breadcrumb state
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
@@ -101,7 +102,7 @@ export default function FolderPage() {
 
   const fetchFolder = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     setNotFound(false);
     try {
       const data = await getFolder(id);
@@ -109,6 +110,7 @@ export default function FolderPage() {
       setSubFolders(data.subFolders);
       setFiles(data.files);
       await buildBreadcrumbs(data.folder);
+      initialLoadDone.current = true;
     } catch (err: unknown) {
       if (
         err &&

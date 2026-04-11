@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -24,16 +24,18 @@ export default function SharedPage() {
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const initialLoadDone = useRef(false);
 
   // Preview dialog
   const [previewTarget, setPreviewTarget] = useState<{ id: string; name: string } | null>(null);
 
   const fetchShared = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const data = await getSharedWithMe();
       setFolders(data.folders);
       setFiles(data.files);
+      initialLoadDone.current = true;
     } catch {
       showNotification('Failed to load shared items', 'error');
     } finally {

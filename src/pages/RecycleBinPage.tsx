@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   List,
@@ -62,6 +62,7 @@ export default function RecycleBinPage() {
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const initialLoadDone = useRef(false);
 
   const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'file' | 'folder'; id: string; name: string } | null>(null);
@@ -70,11 +71,12 @@ export default function RecycleBinPage() {
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; type: 'file' | 'folder'; id: string } | null>(null);
 
   const fetchBin = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const data = await getRecycleBin();
       setFolders(data.folders);
       setFiles(data.files);
+      initialLoadDone.current = true;
     } catch {
       showNotification('Failed to load recycle bin', 'error');
     } finally {

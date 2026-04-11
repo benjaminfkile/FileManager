@@ -22,7 +22,7 @@ jest.mock('../lib/cognitoClient', () => ({
 jest.mock('../components/MoveDialog', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
-  function MockMoveDialog(props) {
+  function MockMoveDialog(props: { open: any; onMove: (arg0: string) => any; onClose: any; }) {
     if (!props.open) return null;
     return React.createElement(
       'div',
