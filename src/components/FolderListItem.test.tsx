@@ -5,6 +5,13 @@ import FolderListItem, { FolderListItemProps } from './FolderListItem';
 import { IFolder } from '../types';
 import { NotificationProvider } from '../contexts/NotificationContext';
 
+jest.mock('../lib/cognitoClient', () => ({
+  __esModule: true,
+  default: {},
+  userPool: {},
+}));
+jest.mock('../api/folderService');
+
 const baseFolder: IFolder = {
   id: 'f1',
   user_id: 'u1',
@@ -101,6 +108,38 @@ describe('FolderListItem', () => {
     await userEvent.click(screen.getByText('Open'));
 
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows "Move to..." when isOwner and onMove provided', async () => {
+    const onMove = jest.fn();
+    renderComponent({ onMove });
+    await userEvent.click(screen.getByLabelText('actions'));
+
+    expect(screen.getByText('Move to...')).toBeInTheDocument();
+  });
+
+  it('hides "Move to..." when onMove is not provided', async () => {
+    renderComponent();
+    await userEvent.click(screen.getByLabelText('actions'));
+
+    expect(screen.queryByText('Move to...')).not.toBeInTheDocument();
+  });
+
+  it('hides "Move to..." for non-owner', async () => {
+    const onMove = jest.fn();
+    renderComponent({ isOwner: false, onMove });
+    await userEvent.click(screen.getByLabelText('actions'));
+
+    expect(screen.queryByText('Move to...')).not.toBeInTheDocument();
+  });
+
+  it('calls onMove when "Move to..." is clicked', async () => {
+    const onMove = jest.fn();
+    renderComponent({ onMove });
+    await userEvent.click(screen.getByLabelText('actions'));
+    await userEvent.click(screen.getByText('Move to...'));
+
+    expect(onMove).toHaveBeenCalledTimes(1);
   });
 
   it('closes the menu after an action is clicked', async () => {
