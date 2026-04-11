@@ -31,6 +31,7 @@ export interface FolderListItemProps {
   onDelete?: () => void;
   onShare?: () => void;
   onMove?: () => void;
+  onItemDropped?: (draggedId: string, draggedType: 'file' | 'folder') => void;
 }
 
 export default function FolderListItem({
@@ -41,10 +42,13 @@ export default function FolderListItem({
   onDelete,
   onShare,
   onMove,
+  onItemDropped,
 }: FolderListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const [downloading, setDownloading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const { showNotification } = useNotification();
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
@@ -73,10 +77,58 @@ export default function FolderListItem({
     }
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: folder.id, type: 'folder' }));
+    e.dataTransfer.effectAllowed = 'move';
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json')) as {
+        id: string;
+        type: 'file' | 'folder';
+      };
+      // Prevent dropping a folder onto itself
+      if (data.type === 'folder' && data.id === folder.id) return;
+      onItemDropped?.(data.id, data.type);
+    } catch {
+      // Invalid drag data — ignore
+    }
+  };
+
   return (
     <ListItem
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onClick={onClick}
-      sx={{ cursor: 'pointer' }}
+      sx={{
+        opacity: isDragging ? 0.5 : 1,
+        outline: isDragOver ? '2px solid' : 'none',
+        outlineColor: 'primary.main',
+        borderRadius: 1,
+        cursor: 'pointer',
+      }}
       secondaryAction={
         <IconButton
           edge="end"
