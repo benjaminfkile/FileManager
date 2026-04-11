@@ -102,3 +102,9 @@ export async function getFileShares(id: string): Promise<GetFileSharesResponse> 
   const { data } = await apiClient.get<GetFileSharesResponse>(`/api/files/${id}/shares`);
   return data;
 }
+
+// PATCH /api/files/:id/move
+export async function moveFile(id: string, folderId: string | null): Promise<IFile> {
+  const { data } = await apiClient.patch<{ file: IFile }>(`/api/files/${id}/move`, { folderId });
+  return data.file;
+}

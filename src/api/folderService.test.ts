@@ -12,6 +12,7 @@ import {
   shareFolder,
   unshareFolder,
   getFolderShares,
+  moveFolder,
   CreateFolderPayload,
 } from './folderService';
 import { IFolder, IFile, ISharedUser } from '../types';
@@ -203,5 +204,26 @@ describe('getFolderShares', () => {
     expect(result).toEqual(response);
     expect(mock.history.get).toHaveLength(1);
     expect(mock.history.get[0].url).toBe('/api/folders/f-1/shares');
+  });
+});
+
+describe('moveFolder', () => {
+  it('PATCHes /api/folders/:id/move with parentFolderId and returns the IFolder', async () => {
+    mock.onPatch('/api/folders/folder-1/move').reply(200, { folder: fakeFolder });
+
+    const result = await moveFolder('folder-1', 'folder-2');
+
+    expect(result).toEqual(fakeFolder);
+    expect(mock.history.patch).toHaveLength(1);
+    expect(JSON.parse(mock.history.patch[0].data)).toEqual({ parentFolderId: 'folder-2' });
+  });
+
+  it('PATCHes with parentFolderId null to move to root', async () => {
+    mock.onPatch('/api/folders/folder-1/move').reply(200, { folder: fakeFolder });
+
+    const result = await moveFolder('folder-1', null);
+
+    expect(result).toEqual(fakeFolder);
+    expect(JSON.parse(mock.history.patch[0].data)).toEqual({ parentFolderId: null });
   });
 });

@@ -84,3 +84,9 @@ export async function getFolderShares(id: string): Promise<GetSharesResponse> {
   const { data } = await apiClient.get<GetSharesResponse>(`/api/folders/${id}/shares`);
   return data;
 }
+
+// PATCH /api/folders/:id/move
+export async function moveFolder(id: string, parentFolderId: string | null): Promise<IFolder> {
+  const { data } = await apiClient.patch<{ folder: IFolder }>(`/api/folders/${id}/move`, { parentFolderId });
+  return data.folder;
+}
