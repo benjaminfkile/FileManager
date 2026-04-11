@@ -13,9 +13,31 @@ import { IFolder, IFile, IUser } from '../types';
 jest.mock('../api/folderService');
 jest.mock('../api/fileService');
 jest.mock('../api/userService');
+jest.mock('../lib/cognitoClient', () => ({
+  getIdToken: () => Promise.resolve('fake-token'),
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+}));
+
+jest.mock('../components/MoveDialog', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const React = require('react');
+  function MockMoveDialog(props) {
+    if (!props.open) return null;
+    return React.createElement(
+      'div',
+      { 'data-testid': 'move-dialog' },
+      React.createElement('button', { onClick: () => props.onMove('target-folder-id') }, 'Confirm Move'),
+      React.createElement('button', { onClick: props.onClose }, 'Cancel'),
+    );
+  }
+  return { __esModule: true, default: MockMoveDialog };
+});
 
 const mockedGetFolder = folderService.getFolder as jest.MockedFunction<typeof folderService.getFolder>;
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
+const mockedMoveFile = fileService.moveFile as jest.MockedFunction<typeof fileService.moveFile>;
+const mockedMoveFolder = folderService.moveFolder as jest.MockedFunction<typeof folderService.moveFolder>;
 
 const mockedNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
@@ -233,5 +255,92 @@ describe('FolderPage', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'New folder' }));
 
     expect(screen.getByText('New Folder')).toBeInTheDocument();
+  });
+
+  it('opens MoveDialog when clicking Move to... on a subfolder', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Work')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[0]);
+    await userEvent.click(screen.getByText('Move to...'));
+
+    expect(screen.getByTestId('move-dialog')).toBeInTheDocument();
+  });
+
+  it('opens MoveDialog when clicking Move to... on a file', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[1]);
+    await userEvent.click(screen.getByText('Move to...'));
+
+    expect(screen.getByTestId('move-dialog')).toBeInTheDocument();
+  });
+
+  it('calls moveFolder with correct args and refreshes on confirm', async () => {
+    mockedMoveFolder.mockResolvedValue(subFolders[0]);
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Work')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[0]);
+    await userEvent.click(screen.getByText('Move to...'));
+    await userEvent.click(screen.getByText('Confirm Move'));
+
+    await waitFor(() => {
+      expect(mockedMoveFolder).toHaveBeenCalledWith('sf1', 'target-folder-id');
+    });
+    // getFolder is called during initial load (possibly multiple times for breadcrumbs) + refresh after move
+    const callCount = mockedGetFolder.mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('calls moveFile with correct args and refreshes on confirm', async () => {
+    mockedMoveFile.mockResolvedValue(files[0]);
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[1]);
+    await userEvent.click(screen.getByText('Move to...'));
+    await userEvent.click(screen.getByText('Confirm Move'));
+
+    await waitFor(() => {
+      expect(mockedMoveFile).toHaveBeenCalledWith('file1', 'target-folder-id');
+    });
+    const callCount = mockedGetFolder.mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows error notification on failed move', async () => {
+    mockedMoveFolder.mockRejectedValue(new Error('Move failed'));
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Work')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[0]);
+    await userEvent.click(screen.getByText('Move to...'));
+    await userEvent.click(screen.getByText('Confirm Move'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to move')).toBeInTheDocument();
+    });
   });
 });
