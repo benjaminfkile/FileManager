@@ -12,11 +12,13 @@ import {
   GetFolderResponse,
   renameFolder,
   deleteFolder,
+  moveFolder,
 } from '../api/folderService';
 import {
   downloadFile,
   renameFile,
   deleteFile,
+  moveFile,
 } from '../api/fileService';
 import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
@@ -30,6 +32,7 @@ import RenameDialog from '../components/RenameDialog';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import ShareDialog from '../components/ShareDialog';
 import FilePreviewDialog from '../components/FilePreviewDialog';
+import MoveDialog from '../components/MoveDialog';
 
 interface BreadcrumbItem {
   id: string | null;
@@ -62,6 +65,14 @@ export default function FolderPage() {
 
   // Preview dialog
   const [previewTarget, setPreviewTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // Move dialog
+  const [moveTarget, setMoveTarget] = useState<{
+    id: string;
+    name: string;
+    type: 'file' | 'folder';
+    currentFolderId: string | null;
+  } | null>(null);
 
   const buildBreadcrumbs = useCallback(async (currentFolder: IFolder) => {
     const trail: BreadcrumbItem[] = [];
@@ -156,6 +167,22 @@ export default function FolderPage() {
     }
   };
 
+  const handleMove = async (targetFolderId: string | null) => {
+    if (!moveTarget) return;
+    try {
+      if (moveTarget.type === 'file') {
+        await moveFile(moveTarget.id, targetFolderId);
+      } else {
+        await moveFolder(moveTarget.id, targetFolderId);
+      }
+      showNotification('Moved successfully');
+      setMoveTarget(null);
+      fetchFolder();
+    } catch {
+      showNotification('Failed to move', 'error');
+    }
+  };
+
   const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
 
   if (notFound) {
@@ -190,6 +217,7 @@ export default function FolderPage() {
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder' })}
+              onMove={() => setMoveTarget({ id: sf.id, name: sf.name, type: 'folder', currentFolderId: id ?? null })}
             />
           ))}
           {files.map((file) => (
@@ -201,6 +229,7 @@ export default function FolderPage() {
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}
               onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file' })}
+              onMove={() => setMoveTarget({ id: file.id, name: file.name, type: 'file', currentFolderId: file.folder_id })}
             />
           ))}
         </List>
@@ -265,6 +294,19 @@ export default function FolderPage() {
               showNotification('Failed to download file', 'error');
             }
           }}
+        />
+      )}
+
+      {/* Move Dialog */}
+      {moveTarget && (
+        <MoveDialog
+          open={!!moveTarget}
+          itemId={moveTarget.id}
+          itemType={moveTarget.type}
+          itemName={moveTarget.name}
+          currentFolderId={moveTarget.currentFolderId}
+          onClose={() => setMoveTarget(null)}
+          onMove={handleMove}
         />
       )}
     </Box>
