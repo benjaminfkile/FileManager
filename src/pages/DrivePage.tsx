@@ -6,8 +6,8 @@ import {
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { getRootFolders, renameFolder, deleteFolder } from '../api/folderService';
-import { getRootFiles, downloadFile, renameFile, deleteFile } from '../api/fileService';
+import { getRootFolders, renameFolder, deleteFolder, moveFolder } from '../api/folderService';
+import { getRootFiles, downloadFile, renameFile, deleteFile, moveFile } from '../api/fileService';
 import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
 import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
@@ -20,6 +20,7 @@ import RenameDialog from '../components/RenameDialog';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import ShareDialog from '../components/ShareDialog';
 import FilePreviewDialog from '../components/FilePreviewDialog';
+import MoveDialog from '../components/MoveDialog';
 
 export default function DrivePage() {
   const navigate = useNavigate();
@@ -41,6 +42,14 @@ export default function DrivePage() {
 
   // Preview dialog
   const [previewTarget, setPreviewTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // Move dialog
+  const [moveTarget, setMoveTarget] = useState<{
+    id: string;
+    name: string;
+    type: 'file' | 'folder';
+    currentFolderId: string | null;
+  } | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -100,6 +109,22 @@ export default function DrivePage() {
     }
   };
 
+  const handleMove = async (targetFolderId: string | null) => {
+    if (!moveTarget) return;
+    try {
+      if (moveTarget.type === 'file') {
+        await moveFile(moveTarget.id, targetFolderId);
+      } else {
+        await moveFolder(moveTarget.id, targetFolderId);
+      }
+      showNotification('Moved successfully');
+      setMoveTarget(null);
+      fetchData();
+    } catch {
+      showNotification('Failed to move', 'error');
+    }
+  };
+
   const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
 
   return (
@@ -127,6 +152,7 @@ export default function DrivePage() {
               onRename={() => setRenameTarget({ id: folder.id, name: folder.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: folder.id, name: folder.name, type: 'folder' })}
               onShare={() => setShareTarget({ id: folder.id, name: folder.name, type: 'folder' })}
+              onMove={() => setMoveTarget({ id: folder.id, name: folder.name, type: 'folder', currentFolderId: null })}
             />
           ))}
           {files.map((file) => (
@@ -138,6 +164,7 @@ export default function DrivePage() {
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}
               onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file' })}
+              onMove={() => setMoveTarget({ id: file.id, name: file.name, type: 'file', currentFolderId: file.folder_id })}
             />
           ))}
         </List>
@@ -182,6 +209,19 @@ export default function DrivePage() {
           itemType={shareTarget.type}
           itemName={shareTarget.name}
           onClose={() => setShareTarget(null)}
+        />
+      )}
+
+      {/* Move Dialog */}
+      {moveTarget && (
+        <MoveDialog
+          open={!!moveTarget}
+          itemId={moveTarget.id}
+          itemType={moveTarget.type}
+          itemName={moveTarget.name}
+          currentFolderId={moveTarget.currentFolderId}
+          onClose={() => setMoveTarget(null)}
+          onMove={handleMove}
         />
       )}
 
