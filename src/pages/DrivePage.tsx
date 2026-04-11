@@ -113,18 +113,14 @@ export default function DrivePage() {
 
   const handleMove = async (targetFolderId: string | null) => {
     if (!moveTarget) return;
-    try {
-      if (moveTarget.type === 'file') {
-        await moveFile(moveTarget.id, targetFolderId);
-      } else {
-        await moveFolder(moveTarget.id, targetFolderId);
-      }
-      showNotification('Moved successfully');
-      setMoveTarget(null);
-      fetchData();
-    } catch {
-      showNotification('Failed to move', 'error');
+    if (moveTarget.type === 'file') {
+      await moveFile(moveTarget.id, targetFolderId);
+    } else {
+      await moveFolder(moveTarget.id, targetFolderId);
     }
+    showNotification('Moved successfully');
+    setMoveTarget(null);
+    fetchData();
   };
 
   const handleItemDropped = async (
@@ -140,8 +136,14 @@ export default function DrivePage() {
       }
       showNotification('Moved successfully');
       fetchData();
-    } catch {
-      showNotification('Failed to move', 'error');
+    } catch (err: unknown) {
+      const msg =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (err as { response?: { data?: { errorMsg?: string } } }).response?.data?.errorMsg
+          : undefined;
+      showNotification(msg ?? 'Failed to move', 'error');
     }
   };
 

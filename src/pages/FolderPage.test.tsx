@@ -22,16 +22,20 @@ jest.mock('../lib/cognitoClient', () => ({
 jest.mock('../components/MoveDialog', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
-  function MockMoveDialog(props: { open: any; onMove: (arg0: string) => any; onClose: any; }) {
-    if (!props.open) return null;
-    return React.createElement(
-      'div',
-      { 'data-testid': 'move-dialog' },
-      React.createElement('button', { onClick: () => props.onMove('target-folder-id') }, 'Confirm Move'),
-      React.createElement('button', { onClick: props.onClose }, 'Cancel'),
-    );
-  }
-  return { __esModule: true, default: MockMoveDialog };
+  return {
+    __esModule: true,
+    default: function MockMoveDialog(props) {
+      if (!props.open) return null;
+      return React.createElement(
+        'div',
+        { 'data-testid': 'move-dialog' },
+        React.createElement('button', {
+          onClick: () => props.onMove('target-folder-id').catch(() => {}),
+        }, 'Confirm Move'),
+        React.createElement('button', { onClick: props.onClose }, 'Cancel'),
+      );
+    },
+  };
 });
 
 const mockedGetFolder = folderService.getFolder as jest.MockedFunction<typeof folderService.getFolder>;
@@ -326,7 +330,7 @@ describe('FolderPage', () => {
     expect(callCount).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows error notification on failed move', async () => {
+  it('attempts move on failed move via dialog', async () => {
     mockedMoveFolder.mockRejectedValue(new Error('Move failed'));
     renderPage();
 
@@ -339,8 +343,9 @@ describe('FolderPage', () => {
     await userEvent.click(screen.getByText('Move to...'));
     await userEvent.click(screen.getByText('Confirm Move'));
 
+    // MoveDialog now owns the error inline
     await waitFor(() => {
-      expect(screen.getByText('Failed to move')).toBeInTheDocument();
+      expect(mockedMoveFolder).toHaveBeenCalledWith('sf1', 'target-folder-id');
     });
   });
 
@@ -395,6 +400,25 @@ describe('FolderPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Failed to move')).toBeInTheDocument();
+    });
+  });
+
+  it('shows specific API error message on drag-and-drop 403', async () => {
+    const axiosError = {
+      response: { status: 403, data: { errorMsg: 'You do not own the target folder' } },
+    };
+    mockedMoveFile.mockRejectedValueOnce(axiosError);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Work')).toBeInTheDocument());
+
+    const folderItem = screen.getByText('Work').closest('li')!;
+    const dragData = JSON.stringify({ id: 'file-xyz', type: 'file' });
+    fireEvent.drop(folderItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('You do not own the target folder')).toBeInTheDocument();
     });
   });
 });

@@ -52,6 +52,7 @@ export default function MoveDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const currentBrowsingFolderId = breadcrumbs[breadcrumbs.length - 1].id;
 
@@ -106,16 +107,24 @@ export default function MoveDialog({
     setBreadcrumbs([{ id: null, name: 'My Files' }]);
     setFolders([]);
     setError(null);
+    setMoveError(null);
     onClose();
   };
 
   const handleMove = async () => {
     setMoving(true);
+    setMoveError(null);
     try {
       await onMove(currentBrowsingFolderId);
       handleClose();
-    } catch {
-      // caller handles error
+    } catch (err: unknown) {
+      const msg =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (err as { response?: { data?: { errorMsg?: string } } }).response?.data?.errorMsg
+          : undefined;
+      setMoveError(msg ?? 'Failed to move');
     } finally {
       setMoving(false);
     }
@@ -161,6 +170,12 @@ export default function MoveDialog({
         {error && (
           <Alert severity="error" sx={{ mt: 1 }}>
             {error}
+          </Alert>
+        )}
+
+        {moveError && (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {moveError}
           </Alert>
         )}
 
