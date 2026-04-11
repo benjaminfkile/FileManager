@@ -43,41 +43,137 @@ const fakeSharedUser: ISharedUser = {
   sharedAt: '2026-01-02T00:00:00.000Z',
 };
 
+// Mock XMLHttpRequest for S3 upload tests
+function createMockXHR() {
+  const xhr = {
+    status: 200,
+    upload: { onprogress: null as null | ((e: Partial<ProgressEvent>) => void) },
+    onload: null as null | (() => void),
+    onerror: null as null | (() => void),
+    open: jest.fn(),
+    setRequestHeader: jest.fn(),
+    send: jest.fn().mockImplementation(() => {
+      if (xhr.onload) xhr.onload();
+    }),
+  };
+  return xhr;
+}
+
+type MockXHR = ReturnType<typeof createMockXHR>;
+let mockXHRInstance: MockXHR;
+beforeEach(() => {
+  mockXHRInstance = createMockXHR();
+  jest.spyOn(window, 'XMLHttpRequest').mockImplementation(() => mockXHRInstance as unknown as XMLHttpRequest);
+});
+
+const presignResponse = {
+  presignedUrl: 'https://s3.example.com/presigned-put',
+  s3Key: 'uploads/abc123/hello.txt',
+  fileId: 'file-new-1',
+};
+
 describe('uploadFile', () => {
-  it('POSTs multipart/form-data to /api/files/upload', async () => {
-    const response = { file: fakeFile };
-    mock.onPost('/api/files/upload').reply(201, response);
+  it('uses presign → XHR PUT → register three-step flow', async () => {
+    mock.onGet('/api/files/presign-upload').reply(200, presignResponse);
+    mock.onPost('/api/files/register').reply(201, { file: fakeFile });
 
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
     const result = await uploadFile({ file });
 
-    expect(result).toEqual(response);
+    expect(result).toEqual({ file: fakeFile });
+
+    // Step 1: presign request
+    expect(mock.history.get).toHaveLength(1);
+    expect(mock.history.get[0].url).toBe('/api/files/presign-upload');
+    expect(mock.history.get[0].params).toEqual({
+      name: 'hello.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 5,
+      folderId: undefined,
+    });
+
+    // Step 2: XHR PUT to S3
+    expect(mockXHRInstance.open).toHaveBeenCalledWith('PUT', presignResponse.presignedUrl);
+    expect(mockXHRInstance.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'text/plain');
+    expect(mockXHRInstance.send).toHaveBeenCalledWith(file);
+
+    // Step 3: register
     expect(mock.history.post).toHaveLength(1);
-    expect(mock.history.post[0].url).toBe('/api/files/upload');
-    expect(mock.history.post[0].data).toBeInstanceOf(FormData);
-    expect(mock.history.post[0].headers?.['Content-Type']).toBe('multipart/form-data');
+    expect(mock.history.post[0].url).toBe('/api/files/register');
+    const registerBody = JSON.parse(mock.history.post[0].data);
+    expect(registerBody).toEqual({
+      fileId: presignResponse.fileId,
+      name: 'hello.txt',
+      s3Key: presignResponse.s3Key,
+      sizeBytes: 5,
+      mimeType: 'text/plain',
+      folderId: null,
+    });
   });
 
-  it('includes folderId and name in FormData when provided', async () => {
-    const response = { file: fakeFile };
-    mock.onPost('/api/files/upload').reply(201, response);
+  it('includes folderId and custom name when provided', async () => {
+    mock.onGet('/api/files/presign-upload').reply(200, presignResponse);
+    mock.onPost('/api/files/register').reply(201, { file: fakeFile });
 
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
     await uploadFile({ file, folderId: 'f-1', name: 'custom.txt' });
 
-    const formData = mock.history.post[0].data as FormData;
-    expect(formData.get('folderId')).toBe('f-1');
-    expect(formData.get('name')).toBe('custom.txt');
+    expect(mock.history.get[0].params.folderId).toBe('f-1');
+
+    const registerBody = JSON.parse(mock.history.post[0].data);
+    expect(registerBody.name).toBe('custom.txt');
+    expect(registerBody.folderId).toBe('f-1');
   });
 
-  it('passes onUploadProgress callback', async () => {
-    mock.onPost('/api/files/upload').reply(201, { file: fakeFile });
+  it('fires onUploadProgress via XHR upload.onprogress', async () => {
+    mock.onGet('/api/files/presign-upload').reply(200, presignResponse);
+    mock.onPost('/api/files/register').reply(201, { file: fakeFile });
+
+    mockXHRInstance.send = jest.fn().mockImplementation(() => {
+      // Simulate a progress event before completing
+      if (mockXHRInstance.upload.onprogress) {
+        mockXHRInstance.upload.onprogress({ lengthComputable: true, loaded: 3, total: 5 });
+      }
+      if (mockXHRInstance.onload) mockXHRInstance.onload();
+    });
 
     const onUploadProgress = jest.fn();
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
     await uploadFile({ file, onUploadProgress });
 
-    expect(mock.history.post[0].onUploadProgress).toBe(onUploadProgress);
+    expect(onUploadProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loaded: 3,
+        total: 5,
+        progress: 3 / 5,
+        bytes: 3,
+        upload: true,
+        download: false,
+      }),
+    );
+  });
+
+  it('rejects with descriptive error on S3 PUT failure (non-2xx)', async () => {
+    mock.onGet('/api/files/presign-upload').reply(200, presignResponse);
+
+    mockXHRInstance.status = 403;
+    mockXHRInstance.send = jest.fn().mockImplementation(() => {
+      if (mockXHRInstance.onload) mockXHRInstance.onload();
+    });
+
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+    await expect(uploadFile({ file })).rejects.toThrow('S3 upload failed: 403');
+  });
+
+  it('rejects with network error on XHR onerror', async () => {
+    mock.onGet('/api/files/presign-upload').reply(200, presignResponse);
+
+    mockXHRInstance.send = jest.fn().mockImplementation(() => {
+      if (mockXHRInstance.onerror) mockXHRInstance.onerror();
+    });
+
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+    await expect(uploadFile({ file })).rejects.toThrow('Upload failed — network error');
   });
 });
 
