@@ -183,6 +183,24 @@ export default function FolderPage() {
     }
   };
 
+  const handleItemDropped = async (
+    targetFolderId: string,
+    draggedId: string,
+    draggedType: 'file' | 'folder',
+  ) => {
+    try {
+      if (draggedType === 'file') {
+        await moveFile(draggedId, targetFolderId);
+      } else {
+        await moveFolder(draggedId, targetFolderId);
+      }
+      showNotification('Moved successfully');
+      fetchFolder();
+    } catch {
+      showNotification('Failed to move', 'error');
+    }
+  };
+
   const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
 
   if (notFound) {
@@ -218,6 +236,9 @@ export default function FolderPage() {
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onMove={() => setMoveTarget({ id: sf.id, name: sf.name, type: 'folder', currentFolderId: id ?? null })}
+              onItemDropped={(draggedId, draggedType) =>
+                handleItemDropped(sf.id, draggedId, draggedType)
+              }
             />
           ))}
           {files.map((file) => (
