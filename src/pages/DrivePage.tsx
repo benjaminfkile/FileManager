@@ -125,6 +125,24 @@ export default function DrivePage() {
     }
   };
 
+  const handleItemDropped = async (
+    targetFolderId: string,
+    draggedId: string,
+    draggedType: 'file' | 'folder',
+  ) => {
+    try {
+      if (draggedType === 'file') {
+        await moveFile(draggedId, targetFolderId);
+      } else {
+        await moveFolder(draggedId, targetFolderId);
+      }
+      showNotification('Moved successfully');
+      fetchData();
+    } catch {
+      showNotification('Failed to move', 'error');
+    }
+  };
+
   const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
 
   return (
@@ -153,6 +171,9 @@ export default function DrivePage() {
               onDelete={() => setDeleteTarget({ id: folder.id, name: folder.name, type: 'folder' })}
               onShare={() => setShareTarget({ id: folder.id, name: folder.name, type: 'folder' })}
               onMove={() => setMoveTarget({ id: folder.id, name: folder.name, type: 'folder', currentFolderId: null })}
+              onItemDropped={(draggedId, draggedType) =>
+                handleItemDropped(folder.id, draggedId, draggedType)
+              }
             />
           ))}
           {files.map((file) => (
