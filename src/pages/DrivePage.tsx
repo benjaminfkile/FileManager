@@ -7,15 +7,19 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRootFolders, renameFolder, deleteFolder } from '../api/folderService';
-import { IFolder } from '../types';
+import { getRootFiles, downloadFile, renameFile, deleteFile } from '../api/fileService';
+import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { IFolder, IFile } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import FolderListItem from '../components/FolderListItem';
+import FileListItem from '../components/FileListItem';
 import DriveSpeedDial from '../components/DriveSpeedDial';
 import RenameDialog from '../components/RenameDialog';
 import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
 import ShareDialog from '../components/ShareDialog';
+import FilePreviewDialog from '../components/FilePreviewDialog';
 
 export default function DrivePage() {
   const navigate = useNavigate();
@@ -23,32 +27,40 @@ export default function DrivePage() {
   const { showNotification } = useNotification();
 
   const [folders, setFolders] = useState<IFolder[]>([]);
+  const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Rename dialog
-  const [renameTarget, setRenameTarget] = useState<IFolder | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
 
   // Delete dialog
-  const [deleteTarget, setDeleteTarget] = useState<IFolder | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
 
   // Share dialog
-  const [shareTarget, setShareTarget] = useState<IFolder | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
 
-  const fetchFolders = useCallback(async () => {
+  // Preview dialog
+  const [previewTarget, setPreviewTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getRootFolders();
-      setFolders(data);
+      const [fetchedFolders, fetchedFiles] = await Promise.all([
+        getRootFolders(),
+        getRootFiles(),
+      ]);
+      setFolders(fetchedFolders);
+      setFiles(fetchedFiles);
     } catch {
-      showNotification('Failed to load folders', 'error');
+      showNotification('Failed to load files', 'error');
     } finally {
       setLoading(false);
     }
   }, [showNotification]);
 
   useEffect(() => {
-    fetchFolders();
-  }, [fetchFolders]);
+    fetchData();
+  }, [fetchData]);
 
   const handleNavigate = (folderId: string | null) => {
     if (folderId) {
@@ -60,19 +72,35 @@ export default function DrivePage() {
 
   const handleRename = async (newName: string) => {
     if (!renameTarget) return;
-    await renameFolder(renameTarget.id, newName);
-    showNotification('Folder renamed');
-    fetchFolders();
+    try {
+      if (renameTarget.type === 'folder') {
+        await renameFolder(renameTarget.id, newName);
+      } else {
+        await renameFile(renameTarget.id, newName);
+      }
+      showNotification(`${renameTarget.type === 'folder' ? 'Folder' : 'File'} renamed`);
+      fetchData();
+    } catch {
+      showNotification('Failed to rename', 'error');
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await deleteFolder(deleteTarget.id);
-    showNotification('Folder moved to recycle bin');
-    fetchFolders();
+    try {
+      if (deleteTarget.type === 'folder') {
+        await deleteFolder(deleteTarget.id);
+      } else {
+        await deleteFile(deleteTarget.id);
+      }
+      showNotification(`${deleteTarget.type === 'folder' ? 'Folder' : 'File'} moved to recycle bin`);
+      fetchData();
+    } catch {
+      showNotification('Failed to delete', 'error');
+    }
   };
 
-  const isOwner = (folder: IFolder) => folder.user_id === currentUser?.id;
+  const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
 
   return (
     <Box>
@@ -83,7 +111,7 @@ export default function DrivePage() {
 
       {loading ? (
         <LoadingSkeleton />
-      ) : folders.length === 0 ? (
+      ) : folders.length === 0 && files.length === 0 ? (
         <EmptyState
           title="No folders yet"
           description="Create a folder to get started"
@@ -96,9 +124,20 @@ export default function DrivePage() {
               folder={folder}
               isOwner={isOwner(folder)}
               onClick={() => navigate(`/folder/${folder.id}`)}
-              onRename={() => setRenameTarget(folder)}
-              onDelete={() => setDeleteTarget(folder)}
-              onShare={() => setShareTarget(folder)}
+              onRename={() => setRenameTarget({ id: folder.id, name: folder.name, type: 'folder' })}
+              onDelete={() => setDeleteTarget({ id: folder.id, name: folder.name, type: 'folder' })}
+              onShare={() => setShareTarget({ id: folder.id, name: folder.name, type: 'folder' })}
+            />
+          ))}
+          {files.map((file) => (
+            <FileListItem
+              key={file.id}
+              file={file}
+              isOwner={isOwner(file)}
+              onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
+              onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
+              onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}
+              onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file' })}
             />
           ))}
         </List>
@@ -109,11 +148,11 @@ export default function DrivePage() {
         folderId={null}
         onFolderCreated={() => {
           showNotification('Folder created');
-          fetchFolders();
+          fetchData();
         }}
         onFileUploaded={() => {
           showNotification('File uploaded');
-          fetchFolders();
+          fetchData();
         }}
       />
 
@@ -121,7 +160,7 @@ export default function DrivePage() {
       <RenameDialog
         open={!!renameTarget}
         currentName={renameTarget?.name ?? ''}
-        itemType="folder"
+        itemType={renameTarget?.type ?? 'folder'}
         onClose={() => setRenameTarget(null)}
         onRename={handleRename}
       />
@@ -129,7 +168,7 @@ export default function DrivePage() {
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog
         open={!!deleteTarget}
-        title="Delete folder"
+        title={`Delete ${deleteTarget?.type ?? 'item'}`}
         description={`Are you sure you want to delete "${deleteTarget?.name ?? ''}"? It will be moved to the recycle bin.`}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
@@ -140,9 +179,29 @@ export default function DrivePage() {
         <ShareDialog
           open={!!shareTarget}
           itemId={shareTarget.id}
-          itemType="folder"
+          itemType={shareTarget.type}
           itemName={shareTarget.name}
           onClose={() => setShareTarget(null)}
+        />
+      )}
+
+      {/* File Preview Dialog */}
+      {previewTarget && (
+        <FilePreviewDialog
+          open={!!previewTarget}
+          fileId={previewTarget.id}
+          fileName={previewTarget.name}
+          onClose={() => setPreviewTarget(null)}
+          onDownload={async () => {
+            const file = files.find((f) => f.id === previewTarget.id);
+            if (!file) return;
+            try {
+              const blob = await downloadFile(file.id);
+              triggerDownloadFromBlob(blob, file.name);
+            } catch {
+              showNotification('Failed to download file', 'error');
+            }
+          }}
         />
       )}
     </Box>

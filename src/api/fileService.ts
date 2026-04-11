@@ -27,6 +27,12 @@ export interface GetFileSharesResponse {
   sharedWith: ISharedUser[];
 }
 
+// GET /api/files — root-level files (no folder)
+export async function getRootFiles(): Promise<IFile[]> {
+  const { data } = await apiClient.get<{ files: IFile[] }>('/api/files');
+  return data.files;
+}
+
 // POST /api/files/upload
 export async function uploadFile(payload: UploadFilePayload): Promise<UploadFileResponse> {
   const formData = new FormData();
