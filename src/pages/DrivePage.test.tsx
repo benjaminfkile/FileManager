@@ -4,15 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import DrivePage from './DrivePage';
 import * as folderService from '../api/folderService';
+import * as fileService from '../api/fileService';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
-import { IFolder, IUser } from '../types';
+import { IFolder, IFile, IUser } from '../types';
 import * as userService from '../api/userService';
 
 jest.mock('../api/folderService');
+jest.mock('../api/fileService');
 jest.mock('../api/userService');
 
 const mockedGetRootFolders = folderService.getRootFolders as jest.MockedFunction<typeof folderService.getRootFolders>;
+const mockedGetRootFiles = fileService.getRootFiles as jest.MockedFunction<typeof fileService.getRootFiles>;
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
 
 const mockedNavigate = jest.fn();
@@ -72,11 +75,13 @@ beforeEach(() => {
   localStorage.clear();
   jest.resetAllMocks();
   mockedGetRootFolders.mockResolvedValue(folders);
+  mockedGetRootFiles.mockResolvedValue([]);
 });
 
 describe('DrivePage', () => {
   it('shows loading skeleton while fetching', () => {
     mockedGetRootFolders.mockReturnValue(new Promise(() => {})); // never resolves
+    mockedGetRootFiles.mockReturnValue(new Promise(() => {})); // never resolves
     renderPage();
 
     // LoadingSkeleton renders MUI Skeleton elements
@@ -95,6 +100,7 @@ describe('DrivePage', () => {
 
   it('shows empty state when no folders', async () => {
     mockedGetRootFolders.mockResolvedValue([]);
+    mockedGetRootFiles.mockResolvedValue([]);
     renderPage();
 
     await waitFor(() => {
