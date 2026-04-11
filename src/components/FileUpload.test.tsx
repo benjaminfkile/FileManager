@@ -114,6 +114,45 @@ describe('FileUpload', () => {
     });
   });
 
+  it('caps progress at 99 during S3 upload and shows 100 only after full resolve', async () => {
+    let resolveUpload!: (value: { file: IFile }) => void;
+    mockUploadFile.mockImplementation(({ onUploadProgress }) => {
+      // Simulate S3 upload completing (loaded === total)
+      if (onUploadProgress) {
+        onUploadProgress({ loaded: 100, total: 100, bytes: 100 } as any);
+      }
+      return new Promise((resolve) => {
+        resolveUpload = resolve;
+      });
+    });
+
+    renderComponent();
+    const input = screen.getByTestId('file-input');
+    await userEvent.upload(input, createTestFile());
+
+    // Progress should be capped at 99 even though loaded === total
+    const progressBar = screen.getByRole('progressbar');
+    expect(progressBar).toHaveAttribute('aria-valuenow', '99');
+
+    // After full resolve (including DB registration), progress briefly hits 100
+    resolveUpload({ file: fakeFile });
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows S3 upload error message', async () => {
+    mockUploadFile.mockRejectedValue(new Error('S3 upload failed: 403'));
+    renderComponent();
+
+    const input = screen.getByTestId('file-input');
+    await userEvent.upload(input, createTestFile());
+
+    await waitFor(() => {
+      expect(screen.getByText('S3 upload failed: 403')).toBeInTheDocument();
+    });
+  });
+
   it('shows "File is too large" on 413 error', async () => {
     const error413 = {
       response: { status: 413, data: { errorMsg: 'Payload too large' } },

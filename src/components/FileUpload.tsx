@@ -30,10 +30,12 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
           folderId: folderId ?? undefined,
           onUploadProgress: (event) => {
             if (event.total) {
-              setProgress(Math.round((event.loaded * 100) / event.total));
+              // Cap at 99 so 100% = fully done (including DB registration)
+              setProgress(Math.min(99, Math.round((event.loaded * 100) / event.total)));
             }
           },
         });
+        setProgress(100);
         onUploaded(response.file);
         setFileName(null);
         setProgress(0);
