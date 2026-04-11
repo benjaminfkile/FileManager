@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FolderListItem, { FolderListItemProps } from './FolderListItem';
 import { IFolder } from '../types';
@@ -148,5 +148,57 @@ describe('FolderListItem', () => {
     await userEvent.click(screen.getByText('Download as zip'));
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('has draggable attribute on the list item', () => {
+    renderComponent();
+    const listItem = screen.getByRole('listitem');
+    expect(listItem).toHaveAttribute('draggable', 'true');
+  });
+
+  it('sets correct drag data on dragStart', () => {
+    renderComponent();
+    const listItem = screen.getByRole('listitem');
+    const mockSetData = jest.fn();
+    fireEvent.dragStart(listItem, {
+      dataTransfer: { setData: mockSetData, effectAllowed: '' },
+    });
+    expect(mockSetData).toHaveBeenCalledWith(
+      'application/json',
+      JSON.stringify({ id: baseFolder.id, type: 'folder' }),
+    );
+  });
+
+  it('calls onItemDropped when a file is dropped onto it', () => {
+    const onItemDropped = jest.fn();
+    renderComponent({ onItemDropped });
+    const listItem = screen.getByRole('listitem');
+    const dragData = JSON.stringify({ id: 'file-abc', type: 'file' });
+    fireEvent.drop(listItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+    expect(onItemDropped).toHaveBeenCalledWith('file-abc', 'file');
+  });
+
+  it('does not call onItemDropped when a folder is dropped onto itself', () => {
+    const onItemDropped = jest.fn();
+    renderComponent({ onItemDropped });
+    const listItem = screen.getByRole('listitem');
+    const dragData = JSON.stringify({ id: baseFolder.id, type: 'folder' });
+    fireEvent.drop(listItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+    expect(onItemDropped).not.toHaveBeenCalled();
+  });
+
+  it('calls onItemDropped when a different folder is dropped onto it', () => {
+    const onItemDropped = jest.fn();
+    renderComponent({ onItemDropped });
+    const listItem = screen.getByRole('listitem');
+    const dragData = JSON.stringify({ id: 'other-folder-id', type: 'folder' });
+    fireEvent.drop(listItem, {
+      dataTransfer: { getData: () => dragData },
+    });
+    expect(onItemDropped).toHaveBeenCalledWith('other-folder-id', 'folder');
   });
 });
