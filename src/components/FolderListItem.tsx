@@ -10,6 +10,7 @@ import {
 import {
   MoreVert,
   Folder,
+  FolderShared,
   FolderOpen,
   Download,
   DriveFileRenameOutline,
@@ -26,6 +27,7 @@ import { useNotification } from '../contexts/NotificationContext';
 export interface FolderListItemProps {
   folder: IFolder;
   isOwner: boolean;
+  isSharedWithMe?: boolean;
   onClick: () => void;
   onRename?: () => void;
   onDelete?: () => void;
@@ -37,6 +39,7 @@ export interface FolderListItemProps {
 export default function FolderListItem({
   folder,
   isOwner,
+  isSharedWithMe = false,
   onClick,
   onRename,
   onDelete,
@@ -143,7 +146,11 @@ export default function FolderListItem({
       }
     >
       <ListItemIcon>
-        <Folder sx={{ color: 'amber.A700' }} />
+        {isSharedWithMe ? (
+          <FolderShared sx={{ color: 'amber.A700' }} />
+        ) : (
+          <Folder sx={{ color: 'amber.A700' }} />
+        )}
       </ListItemIcon>
       <ListItemText
         primary={folder.name}
