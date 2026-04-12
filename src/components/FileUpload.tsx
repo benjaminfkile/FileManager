@@ -14,6 +14,7 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -30,7 +31,11 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
           folderId: folderId ?? undefined,
           onUploadProgress: (event) => {
             if (event.total) {
-              setProgress(Math.round((event.loaded * 100) / event.total));
+              const pct = Math.round((event.loaded * 100) / event.total);
+              setProgress(pct);
+              if (pct === 100) {
+                setIsProcessing(true);
+              }
             }
           },
         });
@@ -61,6 +66,7 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
         }
       } finally {
         setUploading(false);
+        setIsProcessing(false);
       }
     },
     [folderId, onUploaded],
@@ -140,7 +146,16 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
           <Typography variant="body2" sx={{ mb: 1 }}>
             {fileName}
           </Typography>
-          <LinearProgress variant="determinate" value={progress} />
+          {isProcessing ? (
+            <>
+              <LinearProgress variant="indeterminate" />
+              <Typography variant="body2" sx={{ mt: 1 }} data-testid="processing-label">
+                Processing…
+              </Typography>
+            </>
+          ) : (
+            <LinearProgress variant="determinate" value={progress} />
+          )}
         </Box>
       )}
 

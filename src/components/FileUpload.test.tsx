@@ -114,6 +114,33 @@ describe('FileUpload', () => {
     });
   });
 
+  it('shows indeterminate progress with "Processing…" label when progress reaches 100', async () => {
+    let resolveUpload!: (value: { file: IFile }) => void;
+    mockUploadFile.mockImplementation(({ onUploadProgress }) => {
+      // Simulate progress reaching 100%
+      if (onUploadProgress) {
+        onUploadProgress({ loaded: 100, total: 100, bytes: 100 } as any);
+      }
+      return new Promise((resolve) => {
+        resolveUpload = resolve;
+      });
+    });
+
+    renderComponent();
+    const input = screen.getByTestId('file-input');
+    await userEvent.upload(input, createTestFile());
+
+    expect(screen.getByText('test.txt')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.getByTestId('processing-label')).toHaveTextContent('Processing…');
+
+    resolveUpload({ file: fakeFile });
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('processing-label')).not.toBeInTheDocument();
+    });
+  });
+
   it('shows "File is too large" on 413 error', async () => {
     const error413 = {
       response: { status: 413, data: { errorMsg: 'Payload too large' } },
