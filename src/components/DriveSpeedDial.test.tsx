@@ -10,6 +10,7 @@ const defaultProps = {
   folderId: 'folder-1',
   onFolderCreated: jest.fn(),
   onFileUploaded: jest.fn(),
+  onFolderUploaded: jest.fn(),
 };
 
 function renderComponent(props = {}) {
@@ -26,12 +27,13 @@ describe('DriveSpeedDial', () => {
     expect(screen.getByRole('button', { name: 'file actions' })).toBeInTheDocument();
   });
 
-  it('shows both actions when opened', async () => {
+  it('shows all actions when opened', async () => {
     renderComponent();
 
     await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
 
     expect(screen.getByRole('menuitem', { name: 'Upload file' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Upload folder' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'New folder' })).toBeInTheDocument();
   });
 
@@ -54,6 +56,17 @@ describe('DriveSpeedDial', () => {
 
     await waitFor(() => {
       expect(screen.getByText('New Folder')).toBeInTheDocument();
+    });
+  });
+
+  it('opens folder upload dialog when Upload folder action is clicked', async () => {
+    renderComponent();
+
+    await userEvent.click(screen.getByRole('button', { name: 'file actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Upload folder' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Upload Folder')).toBeInTheDocument();
     });
   });
 

@@ -271,6 +271,10 @@ export default function FolderPage() {
           showNotification('File uploaded');
           fetchFolder();
         }}
+        onFolderUploaded={(count) => {
+          showNotification(`Folder uploaded (${count} files)`);
+          fetchFolder();
+        }}
       />
 
       {/* Rename Dialog */}
