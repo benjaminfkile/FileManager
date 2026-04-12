@@ -11,10 +11,12 @@ import {
   Add,
   UploadFile,
   CreateNewFolder,
+  DriveFolderUpload,
   Close,
 } from '@mui/icons-material';
 import { IFolder, IFile } from '../types';
 import FileUpload from './FileUpload';
+import FolderUpload from './FolderUpload';
 import CreateFolderDialog from './CreateFolderDialog';
 
 export interface DriveSpeedDialProps {
@@ -30,6 +32,7 @@ export default function DriveSpeedDial({
 }: DriveSpeedDialProps) {
   const [open, setOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [folderUploadOpen, setFolderUploadOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   const actions = [
@@ -39,6 +42,14 @@ export default function DriveSpeedDial({
       onClick: () => {
         setOpen(false);
         setUploadOpen(true);
+      },
+    },
+    {
+      icon: <DriveFolderUpload />,
+      name: 'Upload folder',
+      onClick: () => {
+        setOpen(false);
+        setFolderUploadOpen(true);
       },
     },
     {
@@ -94,6 +105,36 @@ export default function DriveSpeedDial({
             onUploaded={(file) => {
               setUploadOpen(false);
               onFileUploaded(file);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Folder Dialog */}
+      <Dialog
+        open={folderUploadOpen}
+        onClose={() => setFolderUploadOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', pr: 1 }}>
+          Upload Folder
+          <IconButton
+            aria-label="close"
+            onClick={() => setFolderUploadOpen(false)}
+            sx={{ ml: 'auto' }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <FolderUpload
+            folderId={folderId}
+            onUploadComplete={(files) => {
+              setFolderUploadOpen(false);
+              if (files.length > 0) {
+                onFileUploaded(files[0]);
+              }
             }}
           />
         </DialogContent>
