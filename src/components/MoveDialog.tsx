@@ -52,6 +52,7 @@ export default function MoveDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const currentBrowsingFolderId = breadcrumbs[breadcrumbs.length - 1].id;
 
@@ -88,11 +89,13 @@ export default function MoveDialog({
   }, [open, fetchRoot]);
 
   const handleFolderClick = (folder: IFolder) => {
+    setMoveError(null);
     setBreadcrumbs((prev) => [...prev, { id: folder.id, name: folder.name }]);
     fetchFolder(folder.id);
   };
 
   const handleBreadcrumbClick = (index: number) => {
+    setMoveError(null);
     const entry = breadcrumbs[index];
     setBreadcrumbs(breadcrumbs.slice(0, index + 1));
     if (entry.id === null) {
@@ -106,16 +109,23 @@ export default function MoveDialog({
     setBreadcrumbs([{ id: null, name: 'My Files' }]);
     setFolders([]);
     setError(null);
+    setMoveError(null);
     onClose();
   };
 
   const handleMove = async () => {
     setMoving(true);
+    setMoveError(null);
     try {
       await onMove(currentBrowsingFolderId);
       handleClose();
-    } catch {
-      // caller handles error
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr.response?.status === 403) {
+        setMoveError('You cannot move items into a folder you do not own.');
+      } else {
+        setMoveError('Move failed. Please try again.');
+      }
     } finally {
       setMoving(false);
     }
@@ -183,6 +193,11 @@ export default function MoveDialog({
               </Typography>
             )}
           </List>
+        )}
+        {moveError && (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {moveError}
+          </Alert>
         )}
       </DialogContent>
       <DialogActions>

@@ -166,4 +166,63 @@ describe('MoveDialog', () => {
       expect(screen.getByText('Failed to load folders')).toBeInTheDocument();
     });
   });
+
+  it('shows ownership error and keeps dialog open when move returns 403', async () => {
+    const error403 = { response: { status: 403 } };
+    const { props } = renderDialog({
+      currentFolderId: 'some-other-folder',
+      onMove: jest.fn().mockRejectedValue(error403),
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move here' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('You cannot move items into a folder you do not own.')).toBeInTheDocument();
+    });
+    // Dialog should remain open
+    expect(screen.getByText('Move "report.pdf"')).toBeInTheDocument();
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows generic error message for non-403 move failures', async () => {
+    const error500 = { response: { status: 500 } };
+    renderDialog({
+      currentFolderId: 'some-other-folder',
+      onMove: jest.fn().mockRejectedValue(error500),
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move here' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Move failed. Please try again.')).toBeInTheDocument();
+    });
+  });
+
+  it('clears move error when navigating to a different folder', async () => {
+    const error403 = { response: { status: 403 } };
+    renderDialog({
+      currentFolderId: 'some-other-folder',
+      onMove: jest.fn().mockRejectedValue(error403),
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move here' }));
+    await waitFor(() => {
+      expect(screen.getByText('You cannot move items into a folder you do not own.')).toBeInTheDocument();
+    });
+
+    // Navigate into a folder — error should clear
+    await userEvent.click(screen.getByText('Documents'));
+    await waitFor(() => {
+      expect(screen.queryByText('You cannot move items into a folder you do not own.')).not.toBeInTheDocument();
+    });
+  });
 });

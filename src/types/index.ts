@@ -48,6 +48,16 @@ export interface IFolderShare {
   created_at: string;
 }
 
+export interface IPublicShareLink {
+  id: string;
+  token: string;
+  resourceType: 'file' | 'folder';
+  resourceId: string;
+  ownerUserId: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 export interface ISharedUser {
   id: string;
   username: string;
