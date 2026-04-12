@@ -48,6 +48,25 @@ export interface IFolderShare {
   created_at: string;
 }
 
+export interface IShareLink {
+  id: string;
+  token: string;
+  file_id: string | null;
+  folder_id: string | null;
+  created_by_user_id: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+/** Response from GET /api/links/:token */
+export interface IShareLinkResolution {
+  type: 'file' | 'folder';
+  name: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  downloadUrl: string | null;
+}
+
 export interface ISharedUser {
   id: string;
   username: string;
