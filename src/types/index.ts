@@ -70,3 +70,11 @@ export interface IRecycleBinItem {
   folders: IFolder[];
   files: IFile[];
 }
+
+export interface IPublicShareResponse {
+  resourceType: 'file' | 'folder';
+  name: string;
+  sizeBytes?: number;
+  mimeType?: string;
+  downloadUrl: string;
+}

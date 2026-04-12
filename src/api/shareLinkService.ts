@@ -1,5 +1,5 @@
 import apiClient from './apiClient';
-import { IPublicShareLink } from '../types';
+import { IPublicShareLink, IPublicShareResponse } from '../types';
 
 function basePath(resourceType: 'file' | 'folder', resourceId: string): string {
   const segment = resourceType === 'file' ? 'files' : 'folders';
@@ -31,4 +31,9 @@ export async function deleteShareLink(
   linkId: string,
 ): Promise<void> {
   await apiClient.delete(`${basePath(resourceType, resourceId)}/${linkId}`);
+}
+
+export async function getPublicShare(token: string): Promise<IPublicShareResponse> {
+  const { data } = await apiClient.get<IPublicShareResponse>(`/api/public/share/${token}`);
+  return data;
 }

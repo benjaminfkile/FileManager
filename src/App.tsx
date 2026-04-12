@@ -9,6 +9,7 @@ import DrivePage from './pages/DrivePage';
 import FolderPage from './pages/FolderPage';
 import SharedPage from './pages/SharedPage';
 import RecycleBinPage from './pages/RecycleBinPage';
+import ShareAccessPage from './pages/ShareAccessPage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/share/:token" element={<ShareAccessPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DrivePage />} />
