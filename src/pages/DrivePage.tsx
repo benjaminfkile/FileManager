@@ -206,6 +206,10 @@ export default function DrivePage() {
           showNotification('File uploaded');
           fetchData();
         }}
+        onFolderUploaded={(count) => {
+          showNotification(`Folder uploaded (${count} files)`);
+          fetchData();
+        }}
       />
 
       {/* Rename Dialog */}
