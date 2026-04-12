@@ -4,12 +4,21 @@ import userEvent from '@testing-library/user-event';
 import ShareDialog, { ShareDialogProps } from './ShareDialog';
 import { shareFile, unshareFile, getFileShares } from '../api/fileService';
 import { shareFolder, unshareFolder, getFolderShares } from '../api/folderService';
+import {
+  createFileShareLink,
+  createFolderShareLink,
+  revokeFileShareLink,
+  revokeFolderShareLink,
+  getFileShareLink,
+  getFolderShareLink,
+} from '../api/shareLinkService';
 import { searchUsers } from '../api/userService';
-import { ISharedUser, IUser } from '../types';
+import { ISharedUser, IUser, IShareLink } from '../types';
 
 jest.mock('../api/fileService');
 jest.mock('../api/folderService');
 jest.mock('../api/userService');
+jest.mock('../api/shareLinkService');
 
 const mockShowNotification = jest.fn();
 jest.mock('../contexts/NotificationContext', () => ({
@@ -23,6 +32,12 @@ const mockShareFolder = shareFolder as jest.MockedFunction<typeof shareFolder>;
 const mockUnshareFile = unshareFile as jest.MockedFunction<typeof unshareFile>;
 const mockUnshareFolder = unshareFolder as jest.MockedFunction<typeof unshareFolder>;
 const mockSearchUsers = searchUsers as jest.MockedFunction<typeof searchUsers>;
+const mockGetFileShareLink = getFileShareLink as jest.MockedFunction<typeof getFileShareLink>;
+const mockGetFolderShareLink = getFolderShareLink as jest.MockedFunction<typeof getFolderShareLink>;
+const mockCreateFileShareLink = createFileShareLink as jest.MockedFunction<typeof createFileShareLink>;
+const mockCreateFolderShareLink = createFolderShareLink as jest.MockedFunction<typeof createFolderShareLink>;
+const mockRevokeFileShareLink = revokeFileShareLink as jest.MockedFunction<typeof revokeFileShareLink>;
+const mockRevokeFolderShareLink = revokeFolderShareLink as jest.MockedFunction<typeof revokeFolderShareLink>;
 
 const sharedUsers: ISharedUser[] = [
   { id: 'su1', username: 'alice', first_name: 'Alice', last_name: 'Smith', sharedAt: '2026-04-01T00:00:00Z' },
@@ -33,12 +48,23 @@ const searchResultUsers: IUser[] = [
   { id: 'u3', username: 'charlie', first_name: 'Charlie', last_name: 'Brown', created_at: '2026-01-01T00:00:00Z' },
 ];
 
+const mockShareLink: IShareLink = {
+  id: 'link-1',
+  token: 'abc123token',
+  file_id: 'item-1',
+  folder_id: null,
+  created_by_user_id: 'user-1',
+  expires_at: '2026-04-18T00:00:00Z',
+  created_at: '2026-04-11T00:00:00Z',
+};
+
 function renderDialog(overrides: Partial<ShareDialogProps> = {}) {
   const props: ShareDialogProps = {
     open: true,
     itemId: 'item-1',
     itemType: 'file',
     itemName: 'report.pdf',
+    isOwner: true,
     onClose: jest.fn(),
     ...overrides,
   };
@@ -52,6 +78,8 @@ describe('ShareDialog', () => {
     mockGetFileShares.mockResolvedValue({ sharedWith: sharedUsers });
     mockGetFolderShares.mockResolvedValue({ sharedWith: sharedUsers });
     mockSearchUsers.mockResolvedValue(searchResultUsers);
+    mockGetFileShareLink.mockResolvedValue(null);
+    mockGetFolderShareLink.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -222,5 +250,83 @@ describe('ShareDialog', () => {
     await waitFor(() => {
       expect(mockShowNotification).toHaveBeenCalledWith('Failed to load shares', 'error');
     });
+  });
+
+  // Shareable Link tests
+
+  it('shows expiry selector and Create link button when isOwner and no link exists', async () => {
+    mockGetFileShareLink.mockResolvedValue(null);
+    renderDialog({ isOwner: true });
+
+    expect(await screen.findByText('Shareable Link')).toBeInTheDocument();
+    expect(await screen.findByText('Create link')).toBeInTheDocument();
+    expect(screen.getByText('7 days')).toBeInTheDocument();
+  });
+
+  it('calls createFileShareLink and displays the link URL on Create link click', async () => {
+    mockGetFileShareLink.mockResolvedValue(null);
+    mockCreateFileShareLink.mockResolvedValue(mockShareLink);
+
+    renderDialog({ isOwner: true });
+
+    const createBtn = await screen.findByText('Create link');
+    await userEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(mockCreateFileShareLink).toHaveBeenCalledWith('item-1', 604800);
+    });
+
+    expect(await screen.findByDisplayValue(new RegExp('/s/abc123token'))).toBeInTheDocument();
+    expect(mockShowNotification).toHaveBeenCalledWith('Link created', 'success');
+  });
+
+  it('copies link URL to clipboard when copy icon is clicked', async () => {
+    mockGetFileShareLink.mockResolvedValue(mockShareLink);
+
+    const writeTextMock = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+    renderDialog({ isOwner: true });
+
+    const copyBtn = await screen.findByRole('button', { name: 'copy link' });
+    await userEvent.click(copyBtn);
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('/s/abc123token'));
+    });
+    await waitFor(() => {
+      expect(mockShowNotification).toHaveBeenCalledWith('Link copied to clipboard', 'success');
+    });
+  });
+
+  it('revokes the link and hides it when Revoke link is clicked', async () => {
+    mockGetFileShareLink.mockResolvedValue(mockShareLink);
+    mockRevokeFileShareLink.mockResolvedValue(undefined);
+
+    renderDialog({ isOwner: true });
+
+    const revokeBtn = await screen.findByText('Revoke link');
+    await userEvent.click(revokeBtn);
+
+    await waitFor(() => {
+      expect(mockRevokeFileShareLink).toHaveBeenCalledWith('item-1');
+    });
+
+    expect(mockShowNotification).toHaveBeenCalledWith('Link revoked', 'success');
+
+    // After revoke, should show Create link button again
+    expect(await screen.findByText('Create link')).toBeInTheDocument();
+  });
+
+  it('does not show shareable link section when isOwner is false', async () => {
+    renderDialog({ isOwner: false });
+
+    await waitFor(() => {
+      expect(mockGetFileShares).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText('Shareable Link')).not.toBeInTheDocument();
+    expect(screen.queryByText('Create link')).not.toBeInTheDocument();
+    expect(mockGetFileShareLink).not.toHaveBeenCalled();
   });
 });

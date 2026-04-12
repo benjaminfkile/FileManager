@@ -62,7 +62,7 @@ export default function FolderPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
 
   // Share dialog
-  const [shareTarget, setShareTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string; type: 'file' | 'folder'; isOwner: boolean } | null>(null);
 
   // Preview dialog
   const [previewTarget, setPreviewTarget] = useState<{ id: string; name: string } | null>(null);
@@ -238,7 +238,7 @@ export default function FolderPage() {
               onClick={() => navigate(`/folder/${sf.id}`)}
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
-              onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder' })}
+              onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder', isOwner: isOwner(sf) })}
               onMove={() => setMoveTarget({ id: sf.id, name: sf.name, type: 'folder', currentFolderId: id ?? null })}
               onItemDropped={(draggedId, draggedType) =>
                 handleItemDropped(sf.id, draggedId, draggedType)
@@ -253,7 +253,7 @@ export default function FolderPage() {
               onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}
-              onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file' })}
+              onShare={() => setShareTarget({ id: file.id, name: file.name, type: 'file', isOwner: isOwner(file) })}
               onMove={() => setMoveTarget({ id: file.id, name: file.name, type: 'file', currentFolderId: file.folder_id })}
             />
           ))}
@@ -302,6 +302,7 @@ export default function FolderPage() {
           itemId={shareTarget.id}
           itemType={shareTarget.type}
           itemName={shareTarget.name}
+          isOwner={shareTarget.isOwner}
           onClose={() => setShareTarget(null)}
         />
       )}

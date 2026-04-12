@@ -13,19 +13,41 @@ import {
   CircularProgress,
   Box,
   Divider,
+  Button,
+  Select,
+  MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopy from '@mui/icons-material/ContentCopy';
 import { shareFile, unshareFile, getFileShares } from '../api/fileService';
 import { shareFolder, unshareFolder, getFolderShares } from '../api/folderService';
+import {
+  createFileShareLink,
+  createFolderShareLink,
+  revokeFileShareLink,
+  revokeFolderShareLink,
+  getFileShareLink,
+  getFolderShareLink,
+} from '../api/shareLinkService';
 import { searchUsers } from '../api/userService';
 import { useNotification } from '../contexts/NotificationContext';
-import { ISharedUser, IUser } from '../types';
+import { ISharedUser, IUser, IShareLink } from '../types';
+
+const EXPIRY_OPTIONS = [
+  { label: '1 hour',   value: 3600 },
+  { label: '24 hours', value: 86400 },
+  { label: '7 days',   value: 604800 },
+  { label: '30 days',  value: 2592000 },
+  { label: 'Never',    value: null },
+];
 
 export interface ShareDialogProps {
   open: boolean;
   itemId: string;
   itemType: 'file' | 'folder';
   itemName: string;
+  isOwner: boolean;
   onClose: () => void;
 }
 
@@ -34,6 +56,7 @@ export default function ShareDialog({
   itemId,
   itemType,
   itemName,
+  isOwner,
   onClose,
 }: ShareDialogProps) {
   const { showNotification } = useNotification();
@@ -43,6 +66,11 @@ export default function ShareDialog({
   const [searchResults, setSearchResults] = useState<IUser[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Shareable link state
+  const [shareLink, setShareLink] = useState<IShareLink | null>(null);
+  const [loadingLink, setLoadingLink] = useState(false);
+  const [expiresInSeconds, setExpiresInSeconds] = useState<number | null>(604800); // default: 7 days
 
   const fetchShares = useCallback(async () => {
     setLoadingShares(true);
@@ -59,13 +87,31 @@ export default function ShareDialog({
     }
   }, [itemId, itemType, showNotification]);
 
+  const fetchShareLink = useCallback(async () => {
+    if (!isOwner) return;
+    setLoadingLink(true);
+    try {
+      const link =
+        itemType === 'file'
+          ? await getFileShareLink(itemId)
+          : await getFolderShareLink(itemId);
+      setShareLink(link);
+    } catch {
+      // No link exists or failed to fetch — leave as null
+      setShareLink(null);
+    } finally {
+      setLoadingLink(false);
+    }
+  }, [itemId, itemType, isOwner]);
+
   useEffect(() => {
     if (open) {
       fetchShares();
+      fetchShareLink();
       setSearchQuery('');
       setSearchResults([]);
     }
-  }, [open, fetchShares]);
+  }, [open, fetchShares, fetchShareLink]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,6 +172,43 @@ export default function ShareDialog({
     } catch {
       showNotification(`Failed to remove share with ${sharedUser.username}`, 'error');
     }
+  };
+
+  const handleCreateLink = async () => {
+    setLoadingLink(true);
+    try {
+      const link =
+        itemType === 'file'
+          ? await createFileShareLink(itemId, expiresInSeconds)
+          : await createFolderShareLink(itemId, expiresInSeconds);
+      setShareLink(link);
+      showNotification('Link created', 'success');
+    } catch {
+      showNotification('Failed to create link', 'error');
+    } finally {
+      setLoadingLink(false);
+    }
+  };
+
+  const handleRevokeLink = async () => {
+    try {
+      if (itemType === 'file') {
+        await revokeFileShareLink(itemId);
+      } else {
+        await revokeFolderShareLink(itemId);
+      }
+      setShareLink(null);
+      showNotification('Link revoked', 'success');
+    } catch {
+      showNotification('Failed to revoke link', 'error');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!shareLink) return;
+    const url = `${window.location.origin}/s/${shareLink.token}`;
+    await navigator.clipboard.writeText(url);
+    showNotification('Link copied to clipboard', 'success');
   };
 
   const handleClose = () => {
@@ -207,6 +290,65 @@ export default function ShareDialog({
               </ListItem>
             ))}
           </List>
+        )}
+
+        {isOwner && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" gutterBottom>Shareable Link</Typography>
+
+            {loadingLink ? (
+              <CircularProgress size={20} />
+            ) : shareLink ? (
+              <Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  value={`${window.location.origin}/s/${shareLink.token}`}
+                  slotProps={{
+                    input: {
+                      readOnly: true,
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={handleCopyLink} aria-label="copy link">
+                            <ContentCopy fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  {shareLink.expires_at
+                    ? `Expires ${new Date(shareLink.expires_at).toLocaleDateString()}`
+                    : 'Never expires'}
+                </Typography>
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={handleRevokeLink}
+                  sx={{ mt: 1 }}
+                >
+                  Revoke link
+                </Button>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Select
+                  size="small"
+                  value={expiresInSeconds}
+                  onChange={(e) => setExpiresInSeconds(e.target.value as number | null)}
+                >
+                  {EXPIRY_OPTIONS.map((opt) => (
+                    <MenuItem key={String(opt.value)} value={opt.value as any}>{opt.label}</MenuItem>
+                  ))}
+                </Select>
+                <Button variant="outlined" size="small" onClick={handleCreateLink}>
+                  Create link
+                </Button>
+              </Box>
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>
