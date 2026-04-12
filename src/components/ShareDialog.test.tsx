@@ -16,6 +16,16 @@ jest.mock('../contexts/NotificationContext', () => ({
   useNotification: () => ({ showNotification: mockShowNotification }),
 }));
 
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ currentUser: { id: 'owner-1' }, isLoading: false }),
+}));
+
+jest.mock('../api/shareLinkService', () => ({
+  getShareLinks: jest.fn().mockResolvedValue([]),
+  createShareLink: jest.fn(),
+  deleteShareLink: jest.fn(),
+}));
+
 const mockGetFileShares = getFileShares as jest.MockedFunction<typeof getFileShares>;
 const mockGetFolderShares = getFolderShares as jest.MockedFunction<typeof getFolderShares>;
 const mockShareFile = shareFile as jest.MockedFunction<typeof shareFile>;
@@ -39,6 +49,7 @@ function renderDialog(overrides: Partial<ShareDialogProps> = {}) {
     itemId: 'item-1',
     itemType: 'file',
     itemName: 'report.pdf',
+    ownerId: 'owner-1',
     onClose: jest.fn(),
     ...overrides,
   };

@@ -13,20 +13,43 @@ import {
   CircularProgress,
   Box,
   Divider,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { shareFile, unshareFile, getFileShares } from '../api/fileService';
 import { shareFolder, unshareFolder, getFolderShares } from '../api/folderService';
 import { searchUsers } from '../api/userService';
+import { getShareLinks, createShareLink, deleteShareLink } from '../api/shareLinkService';
 import { useNotification } from '../contexts/NotificationContext';
-import { ISharedUser, IUser } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { ISharedUser, IUser, IPublicShareLink } from '../types';
 
 export interface ShareDialogProps {
   open: boolean;
   itemId: string;
   itemType: 'file' | 'folder';
   itemName: string;
+  ownerId: string;
   onClose: () => void;
+}
+
+type ExpiryOption = '1_day' | '7_days' | '30_days' | 'never';
+
+function expiryToDate(option: ExpiryOption): string | null {
+  const ms: Record<ExpiryOption, number | null> = {
+    '1_day': 86400000,
+    '7_days': 7 * 86400000,
+    '30_days': 30 * 86400000,
+    'never': null,
+  };
+  const offset = ms[option];
+  return offset != null ? new Date(Date.now() + offset).toISOString() : null;
 }
 
 export default function ShareDialog({
@@ -34,15 +57,25 @@ export default function ShareDialog({
   itemId,
   itemType,
   itemName,
+  ownerId,
   onClose,
 }: ShareDialogProps) {
   const { showNotification } = useNotification();
+  const { currentUser } = useAuth();
   const [shares, setShares] = useState<ISharedUser[]>([]);
   const [loadingShares, setLoadingShares] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<IUser[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Share link state
+  const [shareLink, setShareLink] = useState<IPublicShareLink | null>(null);
+  const [loadingLink, setLoadingLink] = useState(false);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [expiryOption, setExpiryOption] = useState<ExpiryOption>('7_days');
+
+  const isOwner = currentUser?.id === ownerId;
 
   const fetchShares = useCallback(async () => {
     setLoadingShares(true);
@@ -59,13 +92,35 @@ export default function ShareDialog({
     }
   }, [itemId, itemType, showNotification]);
 
+  const fetchShareLink = useCallback(async () => {
+    setLoadingLink(true);
+    try {
+      const links = await getShareLinks(itemType, itemId);
+      if (links.length > 0) {
+        const sorted = [...links].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        setShareLink(sorted[0]);
+      } else {
+        setShareLink(null);
+      }
+    } catch {
+      showNotification('Failed to load share link', 'error');
+    } finally {
+      setLoadingLink(false);
+    }
+  }, [itemId, itemType, showNotification]);
+
   useEffect(() => {
     if (open) {
       fetchShares();
       setSearchQuery('');
       setSearchResults([]);
+      if (isOwner) {
+        fetchShareLink();
+      }
     }
-  }, [open, fetchShares]);
+  }, [open, fetchShares, fetchShareLink, isOwner]);
 
   useEffect(() => {
     if (!open) return;
@@ -125,6 +180,41 @@ export default function ShareDialog({
       await fetchShares();
     } catch {
       showNotification(`Failed to remove share with ${sharedUser.username}`, 'error');
+    }
+  };
+
+  const handleCreateLink = async () => {
+    setCreatingLink(true);
+    try {
+      const link = await createShareLink(itemType, itemId, expiryToDate(expiryOption));
+      setShareLink(link);
+      showNotification('Share link created', 'success');
+    } catch {
+      showNotification('Failed to create share link', 'error');
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!shareLink) return;
+    const url = `${window.location.origin}/share/${shareLink.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showNotification('Link copied!', 'success');
+    } catch {
+      showNotification('Failed to copy link', 'error');
+    }
+  };
+
+  const handleDeleteLink = async () => {
+    if (!shareLink) return;
+    try {
+      await deleteShareLink(itemType, itemId, shareLink.id);
+      setShareLink(null);
+      showNotification('Share link removed', 'success');
+    } catch {
+      showNotification('Failed to remove share link', 'error');
     }
   };
 
@@ -207,6 +297,82 @@ export default function ShareDialog({
               </ListItem>
             ))}
           </List>
+        )}
+
+        {isOwner && (
+          <>
+            <Divider sx={{ my: 2 }} />
+
+            <Typography variant="subtitle2" gutterBottom>
+              Shareable link
+            </Typography>
+
+            {loadingLink ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : shareLink ? (
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {`${window.location.origin}/share/${shareLink.token}`}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    aria-label="Copy link"
+                    onClick={handleCopyLink}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    aria-label="Delete link"
+                    onClick={handleDeleteLink}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  {shareLink.expiresAt
+                    ? `Expires ${new Date(shareLink.expiresAt).toLocaleDateString()}`
+                    : 'Never expires'}
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 140 }}>
+                  <InputLabel id="expiry-select-label">Expiry</InputLabel>
+                  <Select
+                    labelId="expiry-select-label"
+                    label="Expiry"
+                    value={expiryOption}
+                    onChange={(e) => setExpiryOption(e.target.value as ExpiryOption)}
+                  >
+                    <MenuItem value="1_day">1 day</MenuItem>
+                    <MenuItem value="7_days">7 days</MenuItem>
+                    <MenuItem value="30_days">30 days</MenuItem>
+                    <MenuItem value="never">No expiry</MenuItem>
+                  </Select>
+                </FormControl>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleCreateLink}
+                  disabled={creatingLink}
+                >
+                  {creatingLink ? 'Creating...' : 'Create link'}
+                </Button>
+              </Box>
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>
