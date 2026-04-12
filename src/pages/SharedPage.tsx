@@ -82,6 +82,7 @@ export default function SharedPage() {
                     key={folder.id}
                     folder={folder}
                     isOwner={false}
+                    isSharedWithMe
                     onClick={() => navigate(`/folder/${folder.id}`)}
                   />
                 ))}

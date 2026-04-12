@@ -45,7 +45,7 @@ export default function FolderPage() {
   const { currentUser } = useAuth();
   const { showNotification } = useNotification();
 
-  const [, setFolder] = useState<IFolder | null>(null);
+  const [folder, setFolder] = useState<IFolder | null>(null);
   const [subFolders, setSubFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,6 +204,7 @@ export default function FolderPage() {
   };
 
   const isOwner = (item: IFolder | IFile) => item.user_id === currentUser?.id;
+  const isBrowsingSharedFolder = !!folder && folder.user_id !== currentUser?.id;
 
   if (notFound) {
     return (
@@ -233,6 +234,7 @@ export default function FolderPage() {
               key={sf.id}
               folder={sf}
               isOwner={isOwner(sf)}
+              isSharedWithMe={isBrowsingSharedFolder}
               onClick={() => navigate(`/folder/${sf.id}`)}
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
