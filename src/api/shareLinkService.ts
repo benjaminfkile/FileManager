@@ -107,3 +107,12 @@ export async function downloadFileViaLink(token: string, fileId: string): Promis
   );
   return data;
 }
+
+// GET /api/share-links/:token/folders/:folderId/download (public) — returns a Blob (zip)
+export async function downloadFolderViaLink(token: string, folderId: string): Promise<Blob> {
+  const { data } = await publicClient.get<Blob>(
+    `/api/share-links/${token}/folders/${folderId}/download`,
+    { responseType: 'blob' }
+  );
+  return data;
+}

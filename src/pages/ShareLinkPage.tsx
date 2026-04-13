@@ -24,6 +24,7 @@ import {
   browseFolderViaLink,
   previewFileViaLink,
   downloadFileViaLink,
+  downloadFolderViaLink,
   ResolvedFileLinkResponse,
   ResolvedFolderLinkResponse,
 } from '../api/shareLinkService';
@@ -64,6 +65,9 @@ export default function ShareLinkPage() {
 
   // Downloading state per file
   const [downloading, setDownloading] = useState<string | null>(null);
+
+  // Downloading state for folder ZIP
+  const [downloadingFolder, setDownloadingFolder] = useState(false);
 
   const resolveRoot = useCallback(async () => {
     if (!token) return;
@@ -155,6 +159,19 @@ export default function ShareLinkPage() {
       triggerDownloadFromBlob(blob, file.name);
     } finally {
       setDownloading(null);
+    }
+  };
+
+  const handleDownloadFolder = async () => {
+    if (!token) return;
+    const folderId = breadcrumb[breadcrumb.length - 1]?.id;
+    if (!folderId) return;
+    setDownloadingFolder(true);
+    try {
+      const blob = await downloadFolderViaLink(token, folderId);
+      triggerDownloadFromBlob(blob, `${currentFolderName}.zip`);
+    } finally {
+      setDownloadingFolder(false);
     }
   };
 
@@ -304,11 +321,20 @@ export default function ShareLinkPage() {
           ))}
         </Box>
 
-        {expiresAt && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            Expires {formatDate(expiresAt)}
-          </Typography>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          {expiresAt ? (
+            <Typography variant="caption" color="text.secondary">
+              Expires {formatDate(expiresAt)}
+            </Typography>
+          ) : <span />}
+          <Tooltip title="Download folder as ZIP">
+            <span>
+              <IconButton onClick={handleDownloadFolder} disabled={downloadingFolder} size="small">
+                {downloadingFolder ? <CircularProgress size={20} /> : <DownloadIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
 
         {/* Back button */}
         {breadcrumb.length > 1 && (
