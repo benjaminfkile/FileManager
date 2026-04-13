@@ -269,6 +269,10 @@ export default function FolderPage() {
           showNotification('File uploaded');
           fetchFolder();
         }}
+        onFolderUploaded={() => {
+          showNotification('Folder uploaded');
+          fetchFolder();
+        }}
       />
 
       {/* Rename Dialog */}
