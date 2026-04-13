@@ -9,6 +9,7 @@ import DrivePage from './pages/DrivePage';
 import FolderPage from './pages/FolderPage';
 import SharedPage from './pages/SharedPage';
 import RecycleBinPage from './pages/RecycleBinPage';
+import ShareLinkPage from './pages/ShareLinkPage';
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Public share link — no authentication required */}
+      <Route path="/share/:token" element={<ShareLinkPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<DrivePage />} />

@@ -74,3 +74,13 @@ export interface IRecycleBinItem {
   folders: IFolder[];
   files: IFile[];
 }
+
+export interface IShareLink {
+  id: string;
+  token: string;
+  item_type: 'file' | 'folder';
+  item_id: string;
+  owner_user_id: string;
+  expires_at: string | null;
+  created_at: string;
+}

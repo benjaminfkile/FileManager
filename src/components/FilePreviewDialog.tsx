@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
-import { previewFile } from '../api/fileService';
+import { previewFile, PreviewFileResponse } from '../api/fileService';
 
 export interface FilePreviewDialogProps {
   open: boolean;
@@ -19,6 +19,8 @@ export interface FilePreviewDialogProps {
   fileName: string;
   onClose: () => void;
   onDownload: () => void;
+  /** Override the default authenticated preview fetch with a custom fetcher (e.g. for public share links). */
+  previewFetcher?: (fileId: string) => Promise<PreviewFileResponse>;
 }
 
 export default function FilePreviewDialog({
@@ -27,6 +29,7 @@ export default function FilePreviewDialog({
   fileName,
   onClose,
   onDownload,
+  previewFetcher,
 }: FilePreviewDialogProps) {
   const [loading, setLoading] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
@@ -45,7 +48,8 @@ export default function FilePreviewDialog({
     setLoading(true);
     setError(null);
 
-    previewFile(fileId)
+    const fetcher = previewFetcher ?? previewFile;
+    fetcher(fileId)
       .then((res) => {
         if (!cancelled) {
           setUrl(res.url);
@@ -66,7 +70,7 @@ export default function FilePreviewDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, fileId]);
+  }, [open, fileId, previewFetcher]);
 
   const renderPreview = () => {
     if (loading) {
