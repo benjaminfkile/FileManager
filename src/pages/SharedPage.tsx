@@ -82,7 +82,7 @@ export default function SharedPage() {
                     key={folder.id}
                     folder={folder}
                     isOwner={false}
-                    onClick={() => navigate(`/folder/${folder.id}`)}
+                    onClick={() => navigate(`/folder/${folder.id}`, { state: { from: 'shared' } })}
                   />
                 ))}
               </List>

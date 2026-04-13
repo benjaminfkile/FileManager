@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   List,
@@ -42,6 +42,8 @@ interface BreadcrumbItem {
 export default function FolderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromShared = (location.state as { from?: string } | null)?.from === 'shared';
   const { currentUser } = useAuth();
   const { showNotification } = useNotification();
 
@@ -95,10 +97,10 @@ export default function FolderPage() {
       trail.unshift({ id: f.id, name: f.name });
     }
 
-    // Prepend "My Files" root
-    trail.unshift({ id: null, name: 'My Files' });
+    // Prepend root crumb — context-aware
+    trail.unshift({ id: null, name: fromShared ? 'Shared with Me' : 'My Files' });
     setCrumbs(trail);
-  }, []);
+  }, [fromShared]);
 
   const fetchFolder = useCallback(async () => {
     if (!id) return;
@@ -133,9 +135,9 @@ export default function FolderPage() {
 
   const handleBreadcrumbNavigate = (folderId: string | null) => {
     if (folderId) {
-      navigate(`/folder/${folderId}`);
+      navigate(`/folder/${folderId}`, { state: fromShared ? { from: 'shared' } : undefined });
     } else {
-      navigate('/');
+      navigate(fromShared ? '/shared' : '/');
     }
   };
 
@@ -233,7 +235,7 @@ export default function FolderPage() {
               key={sf.id}
               folder={sf}
               isOwner={isOwner(sf)}
-              onClick={() => navigate(`/folder/${sf.id}`)}
+              onClick={() => navigate(`/folder/${sf.id}`, { state: fromShared ? { from: 'shared' } : undefined })}
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onShare={() => setShareTarget({ id: sf.id, name: sf.name, type: 'folder' })}
