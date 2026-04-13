@@ -8,8 +8,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRootFolders, renameFolder, deleteFolder, moveFolder } from '../api/folderService';
 import { getRootFiles, downloadFile, renameFile, deleteFile, moveFile } from '../api/fileService';
+import { getSharedWithMe } from '../api/sharedService';
 import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
-import { IFolder, IFile } from '../types';
+import { IFolder, IFile, ISharedByUser } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -29,6 +30,7 @@ export default function DrivePage() {
 
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
+  const [sharedByMap, setSharedByMap] = useState<Record<string, ISharedByUser>>({});
   const [loading, setLoading] = useState(true);
   const initialLoadDone = useRef(false);
 
@@ -55,12 +57,17 @@ export default function DrivePage() {
   const fetchData = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
     try {
-      const [fetchedFolders, fetchedFiles] = await Promise.all([
+      const [fetchedFolders, fetchedFiles, sharedData] = await Promise.all([
         getRootFolders(),
         getRootFiles(),
+        getSharedWithMe(),
       ]);
       setFolders(fetchedFolders);
       setFiles(fetchedFiles);
+      const map: Record<string, ISharedByUser> = {};
+      for (const f of sharedData.folders) map[f.id] = f.shared_by;
+      for (const f of sharedData.files) map[f.id] = f.shared_by;
+      setSharedByMap(map);
       initialLoadDone.current = true;
     } catch {
       showNotification('Failed to load files', 'error');
@@ -168,6 +175,7 @@ export default function DrivePage() {
               key={folder.id}
               folder={folder}
               isOwner={isOwner(folder)}
+              sharedBy={sharedByMap[folder.id]}
               onClick={() => navigate(`/folder/${folder.id}`)}
               onRename={() => setRenameTarget({ id: folder.id, name: folder.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: folder.id, name: folder.name, type: 'folder' })}
@@ -183,6 +191,7 @@ export default function DrivePage() {
               key={file.id}
               file={file}
               isOwner={isOwner(file)}
+              sharedBy={sharedByMap[file.id]}
               onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}

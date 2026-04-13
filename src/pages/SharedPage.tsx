@@ -9,7 +9,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { getSharedWithMe } from '../api/sharedService';
 import { downloadFile } from '../api/fileService';
 import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
-import { IFolder, IFile } from '../types';
+import { ISharedFile, ISharedFolder } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -21,8 +21,8 @@ export default function SharedPage() {
   const navigate = useNavigate();
   const { showNotification } = useNotification();
 
-  const [folders, setFolders] = useState<IFolder[]>([]);
-  const [files, setFiles] = useState<IFile[]>([]);
+  const [folders, setFolders] = useState<ISharedFolder[]>([]);
+  const [files, setFiles] = useState<ISharedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const initialLoadDone = useRef(false);
 
@@ -47,7 +47,7 @@ export default function SharedPage() {
     fetchShared();
   }, [fetchShared]);
 
-  const handleFileDownload = async (file: IFile) => {
+  const handleFileDownload = async (file: ISharedFile) => {
     try {
       const blob = await downloadFile(file.id);
       triggerDownloadFromBlob(blob, file.name);
@@ -82,6 +82,7 @@ export default function SharedPage() {
                     key={folder.id}
                     folder={folder}
                     isOwner={false}
+                    sharedBy={folder.shared_by}
                     onClick={() => navigate(`/folder/${folder.id}`, { state: { from: 'shared' } })}
                   />
                 ))}
@@ -99,6 +100,7 @@ export default function SharedPage() {
                     key={file.id}
                     file={file}
                     isOwner={false}
+                    sharedBy={file.shared_by}
                     onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
                   />
                 ))}

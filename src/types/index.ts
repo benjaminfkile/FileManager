@@ -48,6 +48,20 @@ export interface IFolderShare {
   created_at: string;
 }
 
+export interface ISharedByUser {
+  username: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ISharedFile extends IFile {
+  shared_by: ISharedByUser;
+}
+
+export interface ISharedFolder extends IFolder {
+  shared_by: ISharedByUser;
+}
+
 export interface ISharedUser {
   id: string;
   username: string;

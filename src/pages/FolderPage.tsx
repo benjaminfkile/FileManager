@@ -21,7 +21,8 @@ import {
   moveFile,
 } from '../api/fileService';
 import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
-import { IFolder, IFile } from '../types';
+import { IFolder, IFile, ISharedByUser } from '../types';
+import { getSharedWithMe } from '../api/sharedService';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -50,6 +51,7 @@ export default function FolderPage() {
   const [, setFolder] = useState<IFolder | null>(null);
   const [subFolders, setSubFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
+  const [sharedByMap, setSharedByMap] = useState<Record<string, ISharedByUser>>({});
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const initialLoadDone = useRef(false);
@@ -107,10 +109,17 @@ export default function FolderPage() {
     if (!initialLoadDone.current) setLoading(true);
     setNotFound(false);
     try {
-      const data = await getFolder(id);
+      const [data, sharedData] = await Promise.all([
+        getFolder(id),
+        getSharedWithMe(),
+      ]);
       setFolder(data.folder);
       setSubFolders(data.subFolders);
       setFiles(data.files);
+      const map: Record<string, ISharedByUser> = {};
+      for (const f of sharedData.folders) map[f.id] = f.shared_by;
+      for (const f of sharedData.files) map[f.id] = f.shared_by;
+      setSharedByMap(map);
       await buildBreadcrumbs(data.folder);
       initialLoadDone.current = true;
     } catch (err: unknown) {
@@ -235,6 +244,7 @@ export default function FolderPage() {
               key={sf.id}
               folder={sf}
               isOwner={isOwner(sf)}
+              sharedBy={sharedByMap[sf.id]}
               onClick={() => navigate(`/folder/${sf.id}`, { state: fromShared ? { from: 'shared' } : undefined })}
               onRename={() => setRenameTarget({ id: sf.id, name: sf.name, type: 'folder' })}
               onDelete={() => setDeleteTarget({ id: sf.id, name: sf.name, type: 'folder' })}
@@ -250,6 +260,7 @@ export default function FolderPage() {
               key={file.id}
               file={file}
               isOwner={isOwner(file)}
+              sharedBy={sharedByMap[file.id]}
               onPreview={() => setPreviewTarget({ id: file.id, name: file.name })}
               onRename={() => setRenameTarget({ id: file.id, name: file.name, type: 'file' })}
               onDelete={() => setDeleteTarget({ id: file.id, name: file.name, type: 'file' })}

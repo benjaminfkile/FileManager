@@ -27,6 +27,7 @@ export interface FolderListItemProps {
   folder: IFolder;
   isOwner: boolean;
   onClick: () => void;
+  sharedBy?: { username: string; first_name: string; last_name: string };
   onRename?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
@@ -38,6 +39,7 @@ export default function FolderListItem({
   folder,
   isOwner,
   onClick,
+  sharedBy,
   onRename,
   onDelete,
   onShare,
@@ -147,7 +149,10 @@ export default function FolderListItem({
       </ListItemIcon>
       <ListItemText
         primary={folder.name}
-        secondary={formatDate(folder.created_at)}
+        secondary={sharedBy
+          ? `Shared by ${sharedBy.first_name} ${sharedBy.last_name} (@${sharedBy.username})`
+          : formatDate(folder.created_at)
+        }
       />
       <Menu anchorEl={anchorEl} open={open} onClose={handleClose} onClick={(e) => e.stopPropagation()}>
         <MenuItem onClick={() => handleAction(onClick)}>

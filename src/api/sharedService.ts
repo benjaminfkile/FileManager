@@ -1,9 +1,9 @@
 import apiClient from './apiClient';
-import { IFolder, IFile } from '../types';
+import { ISharedFile, ISharedFolder } from '../types';
 
 export interface SharedWithMeResponse {
-  files: IFile[];
-  folders: IFolder[];
+  files: ISharedFile[];
+  folders: ISharedFolder[];
 }
 
 // GET /api/shared

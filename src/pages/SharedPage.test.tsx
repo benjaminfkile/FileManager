@@ -9,7 +9,7 @@ import * as fileService from '../api/fileService';
 import * as userService from '../api/userService';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
-import { IFolder, IFile, IUser } from '../types';
+import { IFolder, IFile, IUser, ISharedFolder, ISharedFile } from '../types';
 
 jest.mock('../api/sharedService');
 jest.mock('../api/folderService');
@@ -33,7 +33,7 @@ const currentUser: IUser = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
-const sharedFolders: IFolder[] = [
+const sharedFolders: ISharedFolder[] = [
   {
     id: 'sf1',
     user_id: 'other-user',
@@ -43,10 +43,11 @@ const sharedFolders: IFolder[] = [
     deleted_at: null,
     created_at: '2026-01-10T00:00:00Z',
     updated_at: '2026-01-10T00:00:00Z',
+    shared_by: { username: 'alice', first_name: 'Alice', last_name: 'Smith' },
   },
 ];
 
-const sharedFiles: IFile[] = [
+const sharedFiles: ISharedFile[] = [
   {
     id: 'sfile1',
     user_id: 'other-user',
@@ -59,6 +60,7 @@ const sharedFiles: IFile[] = [
     deleted_at: null,
     created_at: '2026-02-15T00:00:00Z',
     updated_at: '2026-02-15T00:00:00Z',
+    shared_by: { username: 'alice', first_name: 'Alice', last_name: 'Smith' },
   },
 ];
 

@@ -35,6 +35,7 @@ import { useNotification } from '../contexts/NotificationContext';
 export interface FileListItemProps {
   file: IFile;
   isOwner: boolean;
+  sharedBy?: { username: string; first_name: string; last_name: string };
   onPreview?: () => void;
   onRename?: () => void;
   onDelete?: () => void;
@@ -57,6 +58,7 @@ const iconMap: Record<string, React.ElementType> = {
 export default function FileListItem({
   file,
   isOwner,
+  sharedBy,
   onPreview,
   onRename,
   onDelete,
@@ -126,7 +128,10 @@ export default function FileListItem({
       </ListItemIcon>
       <ListItemText
         primary={file.name}
-        secondary={`${formatFileSize(file.size_bytes)} — ${formatDate(file.updated_at)}`}
+        secondary={sharedBy
+          ? `Shared by ${sharedBy.first_name} ${sharedBy.last_name} (@${sharedBy.username}) · ${formatFileSize(file.size_bytes)}`
+          : `${formatFileSize(file.size_bytes)} — ${formatDate(file.updated_at)}`
+        }
       />
       <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
         {previewable && (
