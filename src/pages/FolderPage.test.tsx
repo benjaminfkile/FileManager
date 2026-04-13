@@ -6,6 +6,7 @@ import FolderPage from './FolderPage';
 import * as folderService from '../api/folderService';
 import * as fileService from '../api/fileService';
 import * as userService from '../api/userService';
+import * as sharedService from '../api/sharedService';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
 import { IFolder, IFile, IUser } from '../types';
@@ -13,6 +14,7 @@ import { IFolder, IFile, IUser } from '../types';
 jest.mock('../api/folderService');
 jest.mock('../api/fileService');
 jest.mock('../api/userService');
+jest.mock('../api/sharedService');
 jest.mock('../lib/cognitoClient', () => ({
   getIdToken: () => Promise.resolve('fake-token'),
   signIn: jest.fn(),
@@ -38,6 +40,7 @@ const mockedGetFolder = folderService.getFolder as jest.MockedFunction<typeof fo
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
 const mockedMoveFile = fileService.moveFile as jest.MockedFunction<typeof fileService.moveFile>;
 const mockedMoveFolder = folderService.moveFolder as jest.MockedFunction<typeof folderService.moveFolder>;
+const mockedGetSharedWithMe = sharedService.getSharedWithMe as jest.MockedFunction<typeof sharedService.getSharedWithMe>;
 
 const mockedNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
@@ -119,6 +122,9 @@ beforeEach(() => {
   localStorage.clear();
   jest.resetAllMocks();
   mockedGetFolder.mockResolvedValue(folderResponse);
+  mockedMoveFile.mockResolvedValue(files[0]);
+  mockedMoveFolder.mockResolvedValue(subFolders[0]);
+  mockedGetSharedWithMe.mockResolvedValue({ folders: [], files: [] });
 });
 
 describe('FolderPage', () => {
@@ -182,7 +188,7 @@ describe('FolderPage', () => {
     });
 
     await userEvent.click(screen.getByText('Work'));
-    expect(mockedNavigate).toHaveBeenCalledWith('/folder/sf1');
+    expect(mockedNavigate).toHaveBeenCalledWith('/folder/sf1', { state: undefined });
   });
 
   it('shows owner actions for owned folders', async () => {

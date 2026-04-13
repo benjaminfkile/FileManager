@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from './theme/ThemeProvider';
@@ -12,6 +12,7 @@ import { IUser } from './types';
 jest.mock('./api/userService');
 jest.mock('./api/folderService');
 jest.mock('./api/fileService');
+jest.mock('./api/sharedService');
 jest.mock('./lib/cognitoClient');
 jest.mock('./api/setupInterceptors', () => ({
   setupInterceptors: () => 0,
@@ -21,6 +22,7 @@ jest.mock('./api/setupInterceptors', () => ({
 import { getMe, registerUser } from './api/userService';
 import { getRootFolders } from './api/folderService';
 import { getRootFiles } from './api/fileService';
+import { getSharedWithMe } from './api/sharedService';
 import { getIdToken, signOut, signUp, confirmSignUp, signIn } from './lib/cognitoClient';
 
 const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
@@ -33,6 +35,7 @@ const mockGetMe = getMe as jest.MockedFunction<typeof getMe>;
 const mockRegisterUser = registerUser as jest.MockedFunction<typeof registerUser>;
 const mockGetRootFolders = getRootFolders as jest.MockedFunction<typeof getRootFolders>;
 const mockGetRootFiles = getRootFiles as jest.MockedFunction<typeof getRootFiles>;
+const mockGetSharedWithMe = getSharedWithMe as jest.MockedFunction<typeof getSharedWithMe>;
 
 const fakeUser: IUser = {
   id: 'u1',
@@ -62,6 +65,7 @@ beforeEach(() => {
   mockGetIdToken.mockResolvedValue(null); // default: unauthenticated
   mockGetRootFolders.mockResolvedValue([]);
   mockGetRootFiles.mockResolvedValue([]);
+  mockGetSharedWithMe.mockResolvedValue({ folders: [], files: [] });
   // Ensure desktop viewport so permanent drawer renders
   Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
   window.dispatchEvent(new Event('resize'));
@@ -102,9 +106,8 @@ describe('App integration tests', () => {
     expect(screen.getByText('Shared with Me')).toBeInTheDocument();
     expect(screen.getByText('Recycle Bin')).toBeInTheDocument();
 
-    // "My Files" breadcrumb is visible (breadcrumb renders inside a <nav>)
-    const breadcrumbNav = screen.getByRole('navigation');
-    expect(within(breadcrumbNav).getByText('My Files')).toBeInTheDocument();
+    // "My Files" appears in both the sidebar nav and the breadcrumb
+    expect(screen.getAllByText('My Files').length).toBeGreaterThanOrEqual(2);
 
     // Empty state shown for folders
     expect(screen.getByText('No folders yet')).toBeInTheDocument();

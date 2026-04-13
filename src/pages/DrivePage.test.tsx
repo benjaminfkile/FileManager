@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import DrivePage from './DrivePage';
 import * as folderService from '../api/folderService';
 import * as fileService from '../api/fileService';
+import * as sharedService from '../api/sharedService';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
 import { IFolder, IFile, IUser } from '../types';
@@ -13,6 +14,7 @@ import * as userService from '../api/userService';
 jest.mock('../api/folderService');
 jest.mock('../api/fileService');
 jest.mock('../api/userService');
+jest.mock('../api/sharedService');
 jest.mock('../lib/cognitoClient', () => ({
   getIdToken: () => Promise.resolve('fake-token'),
   signIn: jest.fn(),
@@ -39,6 +41,7 @@ const mockedGetRootFiles = fileService.getRootFiles as jest.MockedFunction<typeo
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
 const mockedMoveFile = fileService.moveFile as jest.MockedFunction<typeof fileService.moveFile>;
 const mockedMoveFolder = folderService.moveFolder as jest.MockedFunction<typeof folderService.moveFolder>;
+const mockedGetSharedWithMe = sharedService.getSharedWithMe as jest.MockedFunction<typeof sharedService.getSharedWithMe>;
 
 const mockedNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
@@ -116,6 +119,7 @@ beforeEach(() => {
   mockedGetRootFiles.mockResolvedValue([]);
   mockedMoveFile.mockResolvedValue(files[0]);
   mockedMoveFolder.mockResolvedValue(folders[0]);
+  mockedGetSharedWithMe.mockResolvedValue({ folders: [], files: [] });
 });
 
 describe('DrivePage', () => {

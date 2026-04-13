@@ -140,7 +140,7 @@ describe('SharedPage', () => {
     });
 
     await userEvent.click(screen.getByText('Shared Docs'));
-    expect(mockedNavigate).toHaveBeenCalledWith('/folder/sf1');
+    expect(mockedNavigate).toHaveBeenCalledWith('/folder/sf1', { state: { from: 'shared' } });
   });
 
   it('hides owner actions (rename, delete, share) for shared items', async () => {
