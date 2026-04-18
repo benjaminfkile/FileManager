@@ -97,8 +97,9 @@ export default function AppShell() {
               <MenuIcon />
             </IconButton>
           )}
+          <FolderIcon sx={{ mr: 1 }} />
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            FileManager
+            {process.env.REACT_APP_PAGE_NAME ?? 'File Manager'}
           </Typography>
           <IconButton color="inherit" onClick={toggleMode} aria-label="toggle dark mode">
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}

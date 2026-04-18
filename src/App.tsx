@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/AppShell';
@@ -12,6 +12,10 @@ import RecycleBinPage from './pages/RecycleBinPage';
 import ShareLinkPage from './pages/ShareLinkPage';
 
 function App() {
+  useEffect(() => {
+    document.title = process.env.REACT_APP_PAGE_NAME ?? 'File Manager';
+  }, []);
+
   return (
     <>
     <InterceptorSetup />
