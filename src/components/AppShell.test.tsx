@@ -62,7 +62,7 @@ describe('AppShell', () => {
 
   it('renders app name', () => {
     renderAtRoute('/');
-    expect(screen.getByText('FileManager')).toBeInTheDocument();
+    expect(screen.getByText(process.env.REACT_APP_PAGE_NAME ?? 'File Manager')).toBeInTheDocument();
   });
 
   it('highlights the active nav item for /', () => {

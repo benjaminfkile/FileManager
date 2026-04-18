@@ -52,7 +52,7 @@ beforeEach(() => {
 test('renders all form fields and heading', () => {
   renderPage();
 
-  expect(screen.getByText('File Manager')).toBeInTheDocument();
+  expect(screen.getByText(process.env.REACT_APP_PAGE_NAME ?? 'File Manager')).toBeInTheDocument();
   expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/email/i)).toBeInTheDocument();

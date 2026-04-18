@@ -49,7 +49,7 @@ export default function LoginPage() {
       <Card sx={{ width: '100%', maxWidth: 480 }}>
         <CardContent>
           <Typography variant="h5" component="h1" align="center" gutterBottom>
-            File Manager
+            {process.env.REACT_APP_PAGE_NAME ?? 'File Manager'}
           </Typography>
 
           {error && (
