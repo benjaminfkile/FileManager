@@ -1,8 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Typography, LinearProgress, Alert, Link } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import { uploadFile } from '../api/fileService';
+import { useChunkedUpload } from '../hooks/useChunkedUpload';
 import { IFile } from '../types';
+
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 ** 3; // 50 GB
 
 export interface FileUploadProps {
   folderId: string | null;
@@ -11,59 +13,31 @@ export interface FileUploadProps {
 
 export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { upload, progress, isUploading, error } = useChunkedUpload();
 
   const handleFile = useCallback(
     async (file: File) => {
+      setSizeError(null);
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setSizeError('File exceeds the maximum upload size of 50 GB');
+        return;
+      }
+
       setFileName(file.name);
-      setProgress(0);
-      setError(null);
-      setUploading(true);
 
       try {
-        const response = await uploadFile({
-          file,
-          folderId: folderId ?? undefined,
-          onUploadProgress: (event) => {
-            if (event.total) {
-              setProgress(Math.round((event.loaded * 100) / event.total));
-            }
-          },
-        });
-        onUploaded(response.file);
+        const result = await upload({ file, folderId: folderId ?? undefined });
+        onUploaded(result);
         setFileName(null);
-        setProgress(0);
-      } catch (err: unknown) {
-        if (
-          err &&
-          typeof err === 'object' &&
-          'response' in err &&
-          (err as { response?: { status?: number; data?: { errorMsg?: string } } }).response
-        ) {
-          const axiosErr = err as {
-            response: { status: number; data?: { errorMsg?: string } };
-          };
-          if (axiosErr.response.status === 413) {
-            setError('File is too large');
-          } else {
-            setError(
-              axiosErr.response.data?.errorMsg ?? 'Upload failed',
-            );
-          }
-        } else {
-          const message =
-            err instanceof Error ? err.message : 'Upload failed';
-          setError(message);
-        }
-      } finally {
-        setUploading(false);
+      } catch {
+        // error is surfaced via the hook's error state
       }
     },
-    [folderId, onUploaded],
+    [folderId, onUploaded, upload],
   );
 
   const handleDrop = useCallback(
@@ -100,6 +74,8 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
     inputRef.current?.click();
   };
 
+  const displayError = sizeError ?? error;
+
   return (
     <Box>
       <Box
@@ -135,7 +111,7 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
         />
       </Box>
 
-      {uploading && fileName && (
+      {isUploading && fileName && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="body2" sx={{ mb: 1 }}>
             {fileName}
@@ -144,9 +120,9 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
         </Box>
       )}
 
-      {error && (
-        <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError(null)}>
-          {error}
+      {displayError && (
+        <Alert severity="error" sx={{ mt: 2 }} onClose={() => setSizeError(null)}>
+          {displayError}
         </Alert>
       )}
     </Box>

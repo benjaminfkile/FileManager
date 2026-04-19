@@ -1,12 +1,15 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import FileUpload, { FileUploadProps } from './FileUpload';
-import { uploadFile } from '../api/fileService';
+import FileUpload, { FileUploadProps, MAX_FILE_SIZE_BYTES } from './FileUpload';
 import { IFile } from '../types';
 
-jest.mock('../api/fileService');
-const mockUploadFile = uploadFile as jest.MockedFunction<typeof uploadFile>;
+jest.mock('../hooks/useChunkedUpload', () => ({
+  useChunkedUpload: jest.fn(),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { useChunkedUpload: mockUseChunkedUpload } = require('../hooks/useChunkedUpload') as { useChunkedUpload: jest.Mock };
 
 const fakeFile: IFile = {
   id: 'file-1',
@@ -22,6 +25,17 @@ const fakeFile: IFile = {
   updated_at: '2026-04-08T00:00:00Z',
 };
 
+function createMockHook(overrides: Partial<{ upload: jest.Mock; abort: jest.Mock; progress: number; isUploading: boolean; error: string | null }> = {}) {
+  return {
+    upload: jest.fn<Promise<IFile>, [any]>().mockResolvedValue(fakeFile),
+    abort: jest.fn(),
+    progress: 0,
+    isUploading: false,
+    error: null,
+    ...overrides,
+  };
+}
+
 function renderComponent(overrides: Partial<FileUploadProps> = {}) {
   const props: FileUploadProps = {
     folderId: null,
@@ -31,13 +45,18 @@ function renderComponent(overrides: Partial<FileUploadProps> = {}) {
   return { ...render(<FileUpload {...props} />), props };
 }
 
-function createTestFile(name = 'test.txt', type = 'text/plain') {
-  return new File(['file content'], name, { type });
+function createTestFile(name = 'test.txt', type = 'text/plain', size?: number) {
+  const file = new File(['file content'], name, { type });
+  if (size !== undefined) {
+    Object.defineProperty(file, 'size', { value: size });
+  }
+  return file;
 }
 
 describe('FileUpload', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockUseChunkedUpload.mockReturnValue(createMockHook());
   });
 
   it('renders the drop zone with browse link', () => {
@@ -54,7 +73,8 @@ describe('FileUpload', () => {
   });
 
   it('selecting a file triggers upload and calls onUploaded on success', async () => {
-    mockUploadFile.mockResolvedValue({ file: fakeFile });
+    const mockHook = createMockHook();
+    mockUseChunkedUpload.mockReturnValue(mockHook);
     const { props } = renderComponent();
 
     const input = screen.getByTestId('file-input');
@@ -62,10 +82,9 @@ describe('FileUpload', () => {
     await userEvent.upload(input, file);
 
     await waitFor(() => {
-      expect(mockUploadFile).toHaveBeenCalledWith(
+      expect(mockHook.upload).toHaveBeenCalledWith(
         expect.objectContaining({
           file,
-          onUploadProgress: expect.any(Function),
         }),
       );
     });
@@ -75,27 +94,27 @@ describe('FileUpload', () => {
     });
   });
 
-  it('passes folderId to uploadFile when provided', async () => {
-    mockUploadFile.mockResolvedValue({ file: { ...fakeFile, folder_id: 'folder-1' } });
+  it('passes folderId to upload when provided', async () => {
+    const mockHook = createMockHook();
+    mockUseChunkedUpload.mockReturnValue(mockHook);
     renderComponent({ folderId: 'folder-1' });
 
     const input = screen.getByTestId('file-input');
     await userEvent.upload(input, createTestFile());
 
     await waitFor(() => {
-      expect(mockUploadFile).toHaveBeenCalledWith(
+      expect(mockHook.upload).toHaveBeenCalledWith(
         expect.objectContaining({ folderId: 'folder-1' }),
       );
     });
   });
 
   it('shows progress bar during upload', async () => {
-    let resolveUpload!: (value: { file: IFile }) => void;
-    mockUploadFile.mockImplementation(({ onUploadProgress }) => {
-      // Simulate progress
-      if (onUploadProgress) {
-        onUploadProgress({ loaded: 50, total: 100, bytes: 50 } as any);
-      }
+    const mockHook = createMockHook({ isUploading: true, progress: 50 });
+    mockUseChunkedUpload.mockReturnValue(mockHook);
+
+    let resolveUpload!: (value: IFile) => void;
+    mockHook.upload.mockImplementation(() => {
       return new Promise((resolve) => {
         resolveUpload = resolve;
       });
@@ -108,32 +127,26 @@ describe('FileUpload', () => {
     expect(screen.getByText('test.txt')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
-    resolveUpload({ file: fakeFile });
+    // Simulate upload completing by re-rendering with updated hook state
+    mockUseChunkedUpload.mockReturnValue(createMockHook({ isUploading: false, progress: 100 }));
+    resolveUpload(fakeFile);
+
     await waitFor(() => {
       expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     });
   });
 
-  it('shows "File is too large" on 413 error', async () => {
-    const error413 = {
-      response: { status: 413, data: { errorMsg: 'Payload too large' } },
-    };
-    mockUploadFile.mockRejectedValue(error413);
+  it('shows error from the hook', async () => {
+    mockUseChunkedUpload.mockReturnValue(createMockHook({ error: 'Upload failed' }));
     renderComponent();
 
-    const input = screen.getByTestId('file-input');
-    await userEvent.upload(input, createTestFile());
-
-    await waitFor(() => {
-      expect(screen.getByText('File is too large')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Upload failed')).toBeInTheDocument();
   });
 
-  it('shows API errorMsg on other errors', async () => {
-    const error500 = {
-      response: { status: 500, data: { errorMsg: 'Storage unavailable' } },
-    };
-    mockUploadFile.mockRejectedValue(error500);
+  it('shows hook error when upload rejects', async () => {
+    const mockHook = createMockHook({ error: 'Storage unavailable' });
+    mockHook.upload.mockRejectedValue(new Error('Storage unavailable'));
+    mockUseChunkedUpload.mockReturnValue(mockHook);
     renderComponent();
 
     const input = screen.getByTestId('file-input');
@@ -144,15 +157,21 @@ describe('FileUpload', () => {
     });
   });
 
-  it('shows generic error when no response data', async () => {
-    mockUploadFile.mockRejectedValue(new Error('Network Error'));
+  it('shows size error when file exceeds MAX_FILE_SIZE_BYTES and does not call upload', async () => {
+    const mockHook = createMockHook();
+    mockUseChunkedUpload.mockReturnValue(mockHook);
     renderComponent();
 
     const input = screen.getByTestId('file-input');
-    await userEvent.upload(input, createTestFile());
+    const oversizedFile = createTestFile('huge.bin', 'application/octet-stream', MAX_FILE_SIZE_BYTES + 1);
+    await userEvent.upload(input, oversizedFile);
 
     await waitFor(() => {
-      expect(screen.getByText('Network Error')).toBeInTheDocument();
+      expect(
+        screen.getByText('File exceeds the maximum upload size of 50 GB'),
+      ).toBeInTheDocument();
     });
+
+    expect(mockHook.upload).not.toHaveBeenCalled();
   });
 });
