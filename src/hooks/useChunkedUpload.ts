@@ -57,7 +57,7 @@ export function useChunkedUpload(): {
 
       const chunks = chunkFile(file);
       const totalChunks = chunks.length;
-      let completedCount = 0;
+      const completedCountRef = { current: 0 };
       const parts: CompletedPart[] = [];
 
       const BATCH_SIZE = 3;
@@ -76,8 +76,8 @@ export function useChunkedUpload(): {
               partNumber: chunk.partNumber,
               chunk: chunk.blob,
             });
-            completedCount++;
-            setProgress(Math.round((completedCount / totalChunks) * 100));
+            completedCountRef.current++;
+            setProgress(Math.round((completedCountRef.current / totalChunks) * 100));
             return { partNumber: result.partNumber, etag: result.etag };
           })
         );
