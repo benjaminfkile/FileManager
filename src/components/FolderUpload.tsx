@@ -1,7 +1,13 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Typography, LinearProgress, Alert, Link } from '@mui/material';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import { uploadFile } from '../api/fileService';
+import {
+  initiateUpload,
+  uploadPart,
+  completeUpload,
+  abortUpload,
+} from '../api/chunkedUploadService';
+import { chunkFile } from '../utils/chunkFile';
 import { createFolder } from '../api/folderService';
 
 export interface FolderUploadProps {
@@ -116,7 +122,28 @@ async function orchestrateUpload(
     const folderPath = parts.slice(0, -1).join('/');
     const folderId =
       folderPath === '' ? parentFolderId : (folderIdMap.get(folderPath) ?? null);
-    await uploadFile({ file: entry.file, folderId: folderId ?? undefined });
+    const { fileId } = await initiateUpload({
+      filename: entry.file.name,
+      mimeType: entry.file.type,
+      size: entry.file.size,
+      folderId,
+    });
+    try {
+      const chunks = chunkFile(entry.file);
+      const parts = [];
+      for (const chunk of chunks) {
+        const part = await uploadPart({
+          fileId,
+          partNumber: chunk.partNumber,
+          chunk: chunk.blob,
+        });
+        parts.push(part);
+      }
+      await completeUpload(fileId, parts);
+    } catch (err) {
+      await abortUpload(fileId);
+      throw err;
+    }
     uploaded++;
     onProgress(uploaded, entries.length);
   }
