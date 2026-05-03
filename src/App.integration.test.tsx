@@ -13,7 +13,15 @@ jest.mock('./api/userService');
 jest.mock('./api/folderService');
 jest.mock('./api/fileService');
 jest.mock('./api/sharedService');
-jest.mock('./lib/cognitoClient');
+jest.mock('./lib/cognitoClient', () => ({
+  getIdToken: jest.fn(),
+  signOut: jest.fn(),
+  signUp: jest.fn(),
+  confirmSignUp: jest.fn(),
+  signIn: jest.fn(),
+  forgotPassword: jest.fn(),
+  confirmPassword: jest.fn(),
+}));
 jest.mock('./api/setupInterceptors', () => ({
   setupInterceptors: () => 0,
   ejectInterceptor: () => {},
@@ -23,13 +31,15 @@ import { getMe, registerUser } from './api/userService';
 import { getRootFolders } from './api/folderService';
 import { getRootFiles } from './api/fileService';
 import { getSharedWithMe } from './api/sharedService';
-import { getIdToken, signOut, signUp, confirmSignUp, signIn } from './lib/cognitoClient';
+import { getIdToken, signOut, signUp, confirmSignUp, signIn, forgotPassword, confirmPassword } from './lib/cognitoClient';
 
 const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
 const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
 const mockSignUp = signUp as jest.MockedFunction<typeof signUp>;
 const mockConfirmSignUp = confirmSignUp as jest.MockedFunction<typeof confirmSignUp>;
 const mockSignIn = signIn as jest.MockedFunction<typeof signIn>;
+const mockForgotPassword = forgotPassword as jest.MockedFunction<typeof forgotPassword>;
+const mockConfirmPassword = confirmPassword as jest.MockedFunction<typeof confirmPassword>;
 
 const mockGetMe = getMe as jest.MockedFunction<typeof getMe>;
 const mockRegisterUser = registerUser as jest.MockedFunction<typeof registerUser>;
@@ -175,5 +185,19 @@ describe('App integration tests', () => {
 
     // Cognito signOut should have been called
     expect(mockSignOut).toHaveBeenCalled();
+  });
+
+  // ---- Scenario 5: Forgot password navigation ----
+  test('clicking "Forgot password?" on login navigates to /forgot-password', async () => {
+    renderApp('/login');
+
+    // Login page renders
+    await screen.findByRole('button', { name: /sign in/i });
+
+    // Click "Forgot password?"
+    await userEvent.click(screen.getByRole('button', { name: /forgot password\?/i }));
+
+    // ForgotPasswordPage step 1 renders
+    await screen.findByRole('button', { name: /send reset code/i });
   });
 });

@@ -5,6 +5,7 @@ import AppShell from './components/AppShell';
 import InterceptorSetup from './components/InterceptorSetup';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DrivePage from './pages/DrivePage';
 import FolderPage from './pages/FolderPage';
 import SharedPage from './pages/SharedPage';
@@ -22,6 +23,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       {/* Public share link — no authentication required */}
       <Route path="/share/:token" element={<ShareLinkPage />} />
       <Route element={<ProtectedRoute />}>

@@ -86,7 +86,16 @@ export default function LoginPage() {
             </Button>
           </Box>
 
-          <Typography align="center" sx={{ mt: 2 }}>
+          <Button
+            variant="text"
+            fullWidth
+            onClick={() => navigate('/forgot-password')}
+            sx={{ mt: 1 }}
+          >
+            Forgot password?
+          </Button>
+
+          <Typography align="center" sx={{ mt: 1 }}>
             Don't have an account?{' '}
             <Button variant="text" onClick={() => navigate('/register')}>
               Register
