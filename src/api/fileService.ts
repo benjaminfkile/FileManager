@@ -32,6 +32,17 @@ export interface GetFileSharesResponse {
   sharedWith: ISharedUser[];
 }
 
+export interface UploadedPart {
+  partNumber: number;
+  etag?: string;
+  size?: number;
+}
+
+export interface GetUploadedPartsResponse {
+  fileId: string;
+  parts: UploadedPart[];
+}
+
 // GET /api/files — root-level files (no folder)
 export async function getRootFiles(): Promise<IFile[]> {
   const { data } = await apiClient.get<{ files: IFile[] }>('/api/files');
@@ -103,6 +114,14 @@ export async function unshareFile(id: string, sharedUserId: string): Promise<voi
 // GET /api/files/:id/shares
 export async function getFileShares(id: string): Promise<GetFileSharesResponse> {
   const { data } = await apiClient.get<GetFileSharesResponse>(`/api/files/${id}/shares`);
+  return data;
+}
+
+// GET /api/files/uploads/:fileId/parts — lists parts already uploaded for a multipart upload session
+export async function getUploadedParts(fileId: string): Promise<GetUploadedPartsResponse> {
+  const { data } = await apiClient.get<GetUploadedPartsResponse>(
+    `/api/files/uploads/${fileId}/parts`,
+  );
   return data;
 }
 

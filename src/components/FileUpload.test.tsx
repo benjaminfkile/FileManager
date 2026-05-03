@@ -25,13 +25,27 @@ const fakeFile: IFile = {
   updated_at: '2026-04-08T00:00:00Z',
 };
 
-function createMockHook(overrides: Partial<{ upload: jest.Mock; abort: jest.Mock; progress: number; isUploading: boolean; error: string | null }> = {}) {
+type MockHookOverrides = Partial<{
+  upload: jest.Mock;
+  resume: jest.Mock;
+  discardResume: jest.Mock;
+  abort: jest.Mock;
+  progress: number;
+  isUploading: boolean;
+  error: string | null;
+  pendingResume: { fileId: string; alreadyUploaded: number } | null;
+}>;
+
+function createMockHook(overrides: MockHookOverrides = {}) {
   return {
-    upload: jest.fn<Promise<IFile>, [any]>().mockResolvedValue(fakeFile),
+    upload: jest.fn<Promise<IFile | null>, [any]>().mockResolvedValue(fakeFile),
+    resume: jest.fn<Promise<IFile>, []>().mockResolvedValue(fakeFile),
+    discardResume: jest.fn(),
     abort: jest.fn(),
     progress: 0,
     isUploading: false,
     error: null,
+    pendingResume: null,
     ...overrides,
   };
 }
@@ -173,5 +187,82 @@ describe('FileUpload', () => {
     });
 
     expect(mockHook.upload).not.toHaveBeenCalled();
+  });
+
+  describe('resume prompt', () => {
+    it('renders the resume dialog when pendingResume is set', () => {
+      mockUseChunkedUpload.mockReturnValue(
+        createMockHook({
+          pendingResume: { fileId: 'file-1', alreadyUploaded: 3 },
+        }),
+      );
+      renderComponent();
+      expect(screen.getByTestId('resume-upload-dialog')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /resume previous upload/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('resume-confirm')).toBeInTheDocument();
+      expect(screen.getByTestId('resume-start-over')).toBeInTheDocument();
+    });
+
+    it('shows the dialog before any progress bar is rendered', async () => {
+      const mockHook = createMockHook({
+        pendingResume: { fileId: 'file-1', alreadyUploaded: 1 },
+        isUploading: false,
+      });
+      mockHook.upload.mockResolvedValue(null);
+      mockUseChunkedUpload.mockReturnValue(mockHook);
+
+      renderComponent();
+      const input = screen.getByTestId('file-input');
+      await userEvent.upload(input, createTestFile());
+
+      await waitFor(() => {
+        expect(screen.getByTestId('resume-upload-dialog')).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    it('clicking Resume calls hook.resume() and reports the uploaded file', async () => {
+      const mockHook = createMockHook({
+        pendingResume: { fileId: 'file-1', alreadyUploaded: 2 },
+      });
+      mockUseChunkedUpload.mockReturnValue(mockHook);
+      const { props } = renderComponent();
+
+      const resumeBtn = screen.getByTestId('resume-confirm');
+      await userEvent.click(resumeBtn);
+
+      expect(mockHook.resume).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(props.onUploaded).toHaveBeenCalledWith(fakeFile);
+      });
+      expect(mockHook.discardResume).not.toHaveBeenCalled();
+    });
+
+    it('clicking Start over calls discardResume() then upload()', async () => {
+      const mockHook = createMockHook({
+        pendingResume: { fileId: 'file-1', alreadyUploaded: 2 },
+      });
+      mockUseChunkedUpload.mockReturnValue(mockHook);
+      renderComponent();
+
+      // First, the user picks the file — that triggers the initial upload() call
+      // which the hook short-circuits with pendingResume.
+      mockHook.upload.mockResolvedValueOnce(null);
+      const input = screen.getByTestId('file-input');
+      await userEvent.upload(input, createTestFile());
+
+      const initialUploadCalls = mockHook.upload.mock.calls.length;
+
+      const startOverBtn = screen.getByTestId('resume-start-over');
+      await userEvent.click(startOverBtn);
+
+      expect(mockHook.discardResume).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(mockHook.upload.mock.calls.length).toBeGreaterThan(initialUploadCalls);
+      });
+      expect(mockHook.resume).not.toHaveBeenCalled();
+    });
   });
 });
