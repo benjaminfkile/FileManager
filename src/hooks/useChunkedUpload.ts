@@ -186,6 +186,28 @@ export function useChunkedUpload(): UseChunkedUploadResult {
           for (const u of urls) urlMap.set(u.partNumber, u.url);
         }
 
+        // Hoisted out of the for-loop so it isn't a per-iteration declaration
+        // (ESLint's no-loop-func rule otherwise flags closures over mutable
+        // outer state like `completedCount`).
+        const uploadOneChunk = async (
+          chunk: (typeof remaining)[number],
+        ): Promise<CompletedPart> => {
+          const url = urlMap.get(chunk.partNumber);
+          if (!url) {
+            throw new Error(
+              `Missing presigned URL for part ${chunk.partNumber}`,
+            );
+          }
+          const result = await uploadPartToUrl({
+            url,
+            partNumber: chunk.partNumber,
+            chunk: chunk.blob,
+          });
+          completedCount++;
+          setProgress(Math.round((completedCount / totalChunks) * 100));
+          return { partNumber: result.partNumber, etag: result.etag };
+        };
+
         const BATCH_SIZE = 3;
         for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
           if (abortedRef.current) {
@@ -196,24 +218,7 @@ export function useChunkedUpload(): UseChunkedUploadResult {
           }
 
           const batch = remaining.slice(i, i + BATCH_SIZE);
-          const batchResults = await Promise.all(
-            batch.map(async (chunk) => {
-              const url = urlMap.get(chunk.partNumber);
-              if (!url) {
-                throw new Error(
-                  `Missing presigned URL for part ${chunk.partNumber}`,
-                );
-              }
-              const result = await uploadPartToUrl({
-                url,
-                partNumber: chunk.partNumber,
-                chunk: chunk.blob,
-              });
-              completedCount++;
-              setProgress(Math.round((completedCount / totalChunks) * 100));
-              return { partNumber: result.partNumber, etag: result.etag };
-            }),
-          );
+          const batchResults = await Promise.all(batch.map(uploadOneChunk));
           completedParts.push(...batchResults);
           persist();
         }
