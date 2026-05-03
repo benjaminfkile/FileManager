@@ -27,44 +27,27 @@ describe('downloadHelpers', () => {
   });
 
   describe('triggerDownloadFromUrl', () => {
-    it('fetches the URL, creates a blob object URL, and triggers download', async () => {
-      const fakeBlob = new Blob(['file content'], { type: 'image/png' });
-      global.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        blob: jest.fn().mockResolvedValue(fakeBlob),
-      } as unknown as Response);
+    it('clicks a hidden anchor pointing at the URL — no fetch, no buffering', async () => {
+      const fetchSpy = jest.fn();
+      global.fetch = fetchSpy;
 
       await triggerDownloadFromUrl('https://cdn.example.com/signed-url', 'photo.png');
 
-      expect(global.fetch).toHaveBeenCalledWith('https://cdn.example.com/signed-url');
-      expect(URL.createObjectURL).toHaveBeenCalledWith(fakeBlob);
+      // Critical: bytes must NOT flow through JavaScript.
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+
+      expect(anchorEl.href).toBe('https://cdn.example.com/signed-url');
       expect(anchorEl.download).toBe('photo.png');
+      expect(appendChildSpy).toHaveBeenCalledWith(anchorEl);
       expect(anchorEl.click).toHaveBeenCalled();
+      expect(anchorEl.remove).toHaveBeenCalled();
     });
 
-    it('falls back to window.open if fetch fails', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('network error'));
-      const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
-
-      await triggerDownloadFromUrl('https://cdn.example.com/signed-url', 'photo.png');
-
-      expect(openSpy).toHaveBeenCalledWith(
-        'https://cdn.example.com/signed-url',
-        '_blank',
-        'noopener,noreferrer',
-      );
-    });
-
-    it('uses "download" as fallback filename when none provided', async () => {
-      const fakeBlob = new Blob(['data']);
-      global.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        blob: jest.fn().mockResolvedValue(fakeBlob),
-      } as unknown as Response);
-
+    it('omits the download attribute when no filename is provided', async () => {
       await triggerDownloadFromUrl('https://cdn.example.com/signed-url');
-
-      expect(anchorEl.download).toBe('download');
+      expect(anchorEl.download).toBe('');
+      expect(anchorEl.click).toHaveBeenCalled();
     });
   });
 

@@ -9,6 +9,7 @@ import {
 } from '../api/chunkedUploadService';
 import { chunkFile } from '../utils/chunkFile';
 import { createFolder } from '../api/folderService';
+import { formatFileSize } from '../utils/formatters';
 
 export interface FolderUploadProps {
   folderId: string | null;
@@ -82,10 +83,23 @@ function entriesFromFileList(files: FileList): FileEntry[] {
   }));
 }
 
+export interface UploadProgress {
+  /** Files fully completed so far. */
+  filesCompleted: number;
+  /** Total file count. */
+  totalFiles: number;
+  /** Bytes uploaded across all files (sums completed chunks of the in-flight file too). */
+  bytesUploaded: number;
+  /** Sum of all entries' file sizes — fixed for the whole upload. */
+  totalBytes: number;
+  /** Name of the file currently uploading, or null when between files. */
+  currentFile: string | null;
+}
+
 async function orchestrateUpload(
   entries: FileEntry[],
   parentFolderId: string | null,
-  onProgress: (current: number, total: number) => void,
+  onProgress: (progress: UploadProgress) => void,
 ): Promise<void> {
   // Collect all unique folder paths and sort shallow-first so parents are
   // always created before their children.
@@ -114,14 +128,32 @@ async function orchestrateUpload(
     folderIdMap.set(folderPath, folder.id);
   }
 
-  // Upload files sequentially, reporting progress after each one.
-  onProgress(0, entries.length);
-  let uploaded = 0;
+  const totalBytes = entries.reduce((sum, e) => sum + e.file.size, 0);
+  let bytesUploaded = 0;
+  let filesCompleted = 0;
+
+  onProgress({
+    filesCompleted: 0,
+    totalFiles: entries.length,
+    bytesUploaded: 0,
+    totalBytes,
+    currentFile: null,
+  });
+
   for (const entry of entries) {
     const parts = entry.relativePath.split('/');
     const folderPath = parts.slice(0, -1).join('/');
     const folderId =
       folderPath === '' ? parentFolderId : (folderIdMap.get(folderPath) ?? null);
+
+    onProgress({
+      filesCompleted,
+      totalFiles: entries.length,
+      bytesUploaded,
+      totalBytes,
+      currentFile: entry.file.name,
+    });
+
     const { fileId } = await initiateUpload({
       filename: entry.file.name,
       mimeType: entry.file.type,
@@ -130,29 +162,68 @@ async function orchestrateUpload(
     });
     try {
       const chunks = chunkFile(entry.file);
-      const parts = [];
+      const completedParts = [];
       for (const chunk of chunks) {
         const part = await uploadPart({
           fileId,
           partNumber: chunk.partNumber,
           chunk: chunk.blob,
         });
-        parts.push(part);
+        completedParts.push(part);
+        bytesUploaded += chunk.end - chunk.start;
+        onProgress({
+          filesCompleted,
+          totalFiles: entries.length,
+          bytesUploaded,
+          totalBytes,
+          currentFile: entry.file.name,
+        });
       }
-      await completeUpload(fileId, parts);
+      await completeUpload(fileId, completedParts);
     } catch (err) {
       await abortUpload(fileId);
       throw err;
     }
-    uploaded++;
-    onProgress(uploaded, entries.length);
+    filesCompleted++;
+    onProgress({
+      filesCompleted,
+      totalFiles: entries.length,
+      bytesUploaded,
+      totalBytes,
+      currentFile: filesCompleted < entries.length ? entry.file.name : null,
+    });
   }
+}
+
+const INITIAL_PROGRESS: UploadProgress = {
+  filesCompleted: 0,
+  totalFiles: 0,
+  bytesUploaded: 0,
+  totalBytes: 0,
+  currentFile: null,
+};
+
+function renderUploadHeadline(p: UploadProgress): string {
+  if (p.totalFiles === 1) {
+    return p.currentFile
+      ? `Uploading ${p.currentFile}…`
+      : 'Uploading…';
+  }
+  return p.currentFile
+    ? `Uploading ${p.filesCompleted} of ${p.totalFiles} files · ${p.currentFile}`
+    : `Uploading ${p.filesCompleted} of ${p.totalFiles} files…`;
+}
+
+function renderUploadSubline(p: UploadProgress): string {
+  if (p.totalBytes === 0) return '';
+  const percent = Math.floor((p.bytesUploaded / p.totalBytes) * 100);
+  return `${formatFileSize(p.bytesUploaded)} of ${formatFileSize(p.totalBytes)} (${percent}%)`;
 }
 
 export default function FolderUpload({ folderId, onCompleted }: FolderUploadProps) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [progress, setProgress] = useState<UploadProgress>(INITIAL_PROGRESS);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -164,11 +235,13 @@ export default function FolderUpload({ folderId, onCompleted }: FolderUploadProp
       }
       setError(null);
       setUploading(true);
-      setProgress({ current: 0, total: entries.length });
+      setProgress({
+        ...INITIAL_PROGRESS,
+        totalFiles: entries.length,
+        totalBytes: entries.reduce((sum, e) => sum + e.file.size, 0),
+      });
       try {
-        await orchestrateUpload(entries, folderId, (current, total) =>
-          setProgress({ current, total }),
-        );
+        await orchestrateUpload(entries, folderId, (next) => setProgress(next));
         onCompleted();
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Upload failed');
@@ -248,12 +321,23 @@ export default function FolderUpload({ folderId, onCompleted }: FolderUploadProp
 
       {uploading && (
         <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            Uploading {progress.current} of {progress.total} files…
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            {renderUploadHeadline(progress)}
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', mb: 1 }}
+          >
+            {renderUploadSubline(progress)}
           </Typography>
           <LinearProgress
             variant="determinate"
-            value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0}
+            value={
+              progress.totalBytes > 0
+                ? Math.min(100, (progress.bytesUploaded / progress.totalBytes) * 100)
+                : 0
+            }
           />
         </Box>
       )}

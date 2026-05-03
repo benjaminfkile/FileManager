@@ -1,21 +1,31 @@
 /**
- * Triggers a browser file download from a URL.
- * For cross-origin URLs (e.g. CloudFront signed URLs), the `download` attribute
- * is ignored by browsers, so we fetch the file as a blob and use an object URL.
+ * Triggers a browser file download from a URL by clicking a hidden anchor.
+ *
+ * The browser's native download manager handles the transfer, with its own
+ * progress UI. The actual save behaviour comes from the **server-side**
+ * `Content-Disposition: attachment` header (S3 presigned URLs in this app
+ * bake that into the URL via `response-content-disposition`), not from the
+ * `download` HTML attribute — which is ignored cross-origin anyway.
+ *
+ * Critically, this does NOT fetch the bytes through JavaScript. Buffering a
+ * multi-GB response into a Blob blocks the tab, shows no progress, and risks
+ * OOM on large files.
  */
 export async function triggerDownloadFromUrl(url: string, filename?: string): Promise<void> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-    const blob = await response.blob();
-    triggerDownloadFromBlob(blob, filename ?? 'download');
-  } catch {
-    // Fallback: open in new tab if fetch fails (e.g. network restriction)
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  const a = document.createElement('a');
+  a.href = url;
+  if (filename) a.download = filename; // Hint; cross-origin servers' Content-Disposition wins.
+  a.rel = 'noopener noreferrer';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
-/** Triggers a browser download from a Blob (e.g. folder zip). */
+/**
+ * Triggers a browser download from a Blob (e.g. the streaming-zip fallback
+ * when the File System Access API is unavailable).
+ */
 export function triggerDownloadFromBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
