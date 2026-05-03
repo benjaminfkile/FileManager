@@ -355,7 +355,16 @@ export default function ShareLinkPage() {
               <ListItem
                 key={folder.id}
                 onClick={() => handleFolderClick(folder)}
-                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1 }}
+                sx={{
+                  cursor: 'pointer',
+                  borderRadius: 1,
+                  transition: (theme) => theme.transitions.create('background-color', {
+                    duration: theme.transitions.duration.shortest,
+                  }),
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
+                }}
               >
                 <ListItemIcon>
                   <FolderIcon color="primary" />
@@ -370,7 +379,15 @@ export default function ShareLinkPage() {
             {currentFiles.map((file) => (
               <ListItem
                 key={file.id}
-                sx={{ borderRadius: 1 }}
+                sx={{
+                  borderRadius: 1,
+                  transition: (theme) => theme.transitions.create('background-color', {
+                    duration: theme.transitions.duration.shortest,
+                  }),
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
+                }}
                 secondaryAction={
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     {isPreviewable(file.mime_type) && (

@@ -130,6 +130,12 @@ export default function FolderListItem({
         outlineColor: 'primary.main',
         borderRadius: 1,
         cursor: 'pointer',
+        transition: (theme) => theme.transitions.create('background-color', {
+          duration: theme.transitions.duration.shortest,
+        }),
+        '&:hover': {
+          backgroundColor: 'action.hover',
+        },
       }}
       secondaryAction={
         <IconButton

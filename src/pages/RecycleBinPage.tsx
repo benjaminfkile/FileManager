@@ -191,6 +191,14 @@ export default function RecycleBinPage() {
                 {folders.map((folder) => (
                   <ListItem
                     key={folder.id}
+                    sx={{
+                      transition: (theme) => theme.transitions.create('background-color', {
+                        duration: theme.transitions.duration.shortest,
+                      }),
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
                     secondaryAction={
                       <IconButton
                         edge="end"
@@ -226,6 +234,14 @@ export default function RecycleBinPage() {
                   return (
                     <ListItem
                       key={file.id}
+                      sx={{
+                        transition: (theme) => theme.transitions.create('background-color', {
+                          duration: theme.transitions.duration.shortest,
+                        }),
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
                       secondaryAction={
                         <IconButton
                           edge="end"

@@ -116,7 +116,16 @@ export default function FileListItem({
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      sx={{ opacity: isDragging ? 0.5 : 1, cursor: 'grab' }}
+      sx={{
+        opacity: isDragging ? 0.5 : 1,
+        cursor: 'grab',
+        transition: (theme) => theme.transitions.create('background-color', {
+          duration: theme.transitions.duration.shortest,
+        }),
+        '&:hover': {
+          backgroundColor: 'action.hover',
+        },
+      }}
       secondaryAction={
         <IconButton edge="end" aria-label="actions" onClick={handleOpen}>
           <MoreVert />
