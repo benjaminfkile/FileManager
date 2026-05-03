@@ -168,7 +168,7 @@ describe('FileUpload', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('File exceeds the maximum upload size of 50 GB'),
+        screen.getByText('File exceeds the maximum upload size of 5 TB'),
       ).toBeInTheDocument();
     });
 
