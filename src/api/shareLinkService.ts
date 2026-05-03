@@ -49,6 +49,11 @@ export interface BrowseFolderViaLinkResponse {
   files: IFile[];
 }
 
+export interface DownloadViaLinkResponse {
+  url: string;
+  expiresAt: string;
+}
+
 // POST /api/share-links
 export async function createShareLink(payload: CreateShareLinkPayload): Promise<ShareLinkResponse> {
   const { data } = await apiClient.post<ShareLinkResponse>('/api/share-links', payload);
@@ -99,11 +104,10 @@ export async function previewFileViaLink(
   return data;
 }
 
-// GET /api/share-links/:token/files/:fileId/download (public) — returns a Blob
-export async function downloadFileViaLink(token: string, fileId: string): Promise<Blob> {
-  const { data } = await publicClient.get<Blob>(
-    `/api/share-links/${token}/files/${fileId}/download`,
-    { responseType: 'blob' }
+// GET /api/share-links/:token/files/:fileId/download (public) — returns { url, expiresAt }
+export async function downloadFileViaLink(token: string, fileId: string): Promise<DownloadViaLinkResponse> {
+  const { data } = await publicClient.get<DownloadViaLinkResponse>(
+    `/api/share-links/${token}/files/${fileId}/download`
   );
   return data;
 }

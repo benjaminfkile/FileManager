@@ -29,7 +29,7 @@ import { IFile } from '../types';
 import { getMimeIconName, isPreviewable } from '../utils/fileTypeHelpers';
 import { formatFileSize, formatDate } from '../utils/formatters';
 import { downloadFile } from '../api/fileService';
-import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
 import { useNotification } from '../contexts/NotificationContext';
 
 export interface FileListItemProps {
@@ -98,8 +98,8 @@ export default function FileListItem({
     handleClose();
     setDownloading(true);
     try {
-      const blob = await downloadFile(file.id);
-      triggerDownloadFromBlob(blob, file.name);
+      const { url } = await downloadFile(file.id);
+      await triggerDownloadFromUrl(url, file.name);
     } catch {
       showNotification('Failed to download file', 'error');
     } finally {

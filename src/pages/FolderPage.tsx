@@ -20,7 +20,7 @@ import {
   deleteFile,
   moveFile,
 } from '../api/fileService';
-import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
 import { IFolder, IFile, ISharedByUser } from '../types';
 import { getSharedWithMe } from '../api/sharedService';
 import Breadcrumb from '../components/Breadcrumb';
@@ -328,8 +328,8 @@ export default function FolderPage() {
             const file = files.find((f) => f.id === previewTarget.id);
             if (!file) return;
             try {
-              const blob = await downloadFile(file.id);
-              triggerDownloadFromBlob(blob, file.name);
+              const { url } = await downloadFile(file.id);
+              await triggerDownloadFromUrl(url, file.name);
             } catch {
               showNotification('Failed to download file', 'error');
             }
