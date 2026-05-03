@@ -15,6 +15,9 @@ jest.mock('../api/sharedService');
 jest.mock('../api/folderService');
 jest.mock('../api/fileService');
 jest.mock('../api/userService');
+jest.mock('../hooks/useFolderDownload', () => ({
+  useFolderDownload: () => ({ start: jest.fn(), jobs: [] }),
+}));
 
 const mockedGetSharedWithMe = sharedService.getSharedWithMe as jest.MockedFunction<typeof sharedService.getSharedWithMe>;
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;

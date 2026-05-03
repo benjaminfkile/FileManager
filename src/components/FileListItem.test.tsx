@@ -1,9 +1,14 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileListItem, { FileListItemProps } from './FileListItem';
 import { IFile } from '../types';
 import { NotificationProvider } from '../contexts/NotificationContext';
+import { downloadFile } from '../api/fileService';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+
+const mockedDownloadFile = downloadFile as jest.MockedFunction<typeof downloadFile>;
+const mockedTriggerDownloadFromUrl = triggerDownloadFromUrl as jest.MockedFunction<typeof triggerDownloadFromUrl>;
 
 jest.mock('../lib/cognitoClient', () => ({
   __esModule: true,
@@ -11,6 +16,7 @@ jest.mock('../lib/cognitoClient', () => ({
   userPool: {},
 }));
 jest.mock('../api/fileService');
+jest.mock('../utils/downloadHelpers');
 
 const baseFile: IFile = {
   id: '1',
@@ -38,6 +44,15 @@ function renderComponent(overrides: Partial<FileListItemProps> = {}) {
     </NotificationProvider>
   );
 }
+
+beforeEach(() => {
+  jest.resetAllMocks();
+  mockedDownloadFile.mockResolvedValue({
+    url: 'https://cdn.example.com/signed-url',
+    expiresAt: '2026-01-01T01:00:00.000Z',
+  });
+  mockedTriggerDownloadFromUrl.mockResolvedValue(undefined);
+});
 
 describe('FileListItem', () => {
   it('renders file name, size, and date', () => {
@@ -169,5 +184,18 @@ describe('FileListItem', () => {
     await userEvent.click(screen.getByText('Download'));
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('calls triggerDownloadFromUrl with the signed URL and filename on Download', async () => {
+    renderComponent();
+    await userEvent.click(screen.getByLabelText('actions'));
+    await userEvent.click(screen.getByText('Download'));
+
+    await waitFor(() => {
+      expect(mockedTriggerDownloadFromUrl).toHaveBeenCalledWith(
+        'https://cdn.example.com/signed-url',
+        'report.pdf',
+      );
+    });
   });
 });

@@ -49,6 +49,11 @@ export interface BrowseFolderViaLinkResponse {
   files: IFile[];
 }
 
+export interface DownloadViaLinkResponse {
+  url: string;
+  expiresAt: string;
+}
+
 // POST /api/share-links
 export async function createShareLink(payload: CreateShareLinkPayload): Promise<ShareLinkResponse> {
   const { data } = await apiClient.post<ShareLinkResponse>('/api/share-links', payload);
@@ -99,11 +104,10 @@ export async function previewFileViaLink(
   return data;
 }
 
-// GET /api/share-links/:token/files/:fileId/download (public) — returns a Blob
-export async function downloadFileViaLink(token: string, fileId: string): Promise<Blob> {
-  const { data } = await publicClient.get<Blob>(
-    `/api/share-links/${token}/files/${fileId}/download`,
-    { responseType: 'blob' }
+// GET /api/share-links/:token/files/:fileId/download (public) — returns { url, expiresAt }
+export async function downloadFileViaLink(token: string, fileId: string): Promise<DownloadViaLinkResponse> {
+  const { data } = await publicClient.get<DownloadViaLinkResponse>(
+    `/api/share-links/${token}/files/${fileId}/download`
   );
   return data;
 }
@@ -113,6 +117,43 @@ export async function downloadFolderViaLink(token: string, folderId: string): Pr
   const { data } = await publicClient.get<Blob>(
     `/api/share-links/${token}/folders/${folderId}/download`,
     { responseType: 'blob' }
+  );
+  return data;
+}
+
+export interface PrepareFolderDownloadViaLinkResponse {
+  jobId: string;
+  status: 'ready' | 'pending' | 'processing';
+  url?: string;
+  expiresAt?: string;
+}
+
+export interface FolderDownloadStatusViaLinkResponse {
+  status: 'ready' | 'pending' | 'processing' | 'failed';
+  url?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+// POST /api/share-links/:token/folders/:folderId/download/prepare (public)
+export async function prepareFolderDownloadViaLink(
+  token: string,
+  folderId: string
+): Promise<PrepareFolderDownloadViaLinkResponse> {
+  const { data } = await publicClient.post<PrepareFolderDownloadViaLinkResponse>(
+    `/api/share-links/${token}/folders/${folderId}/download/prepare`
+  );
+  return data;
+}
+
+// GET /api/share-links/:token/folders/:folderId/download/status/:jobId (public)
+export async function getFolderDownloadStatusViaLink(
+  token: string,
+  folderId: string,
+  jobId: string
+): Promise<FolderDownloadStatusViaLinkResponse> {
+  const { data } = await publicClient.get<FolderDownloadStatusViaLinkResponse>(
+    `/api/share-links/${token}/folders/${folderId}/download/status/${jobId}`
   );
   return data;
 }

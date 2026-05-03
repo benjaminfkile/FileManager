@@ -19,9 +19,7 @@ import {
 } from '@mui/icons-material';
 import { IFolder } from '../types';
 import { formatDate } from '../utils/formatters';
-import { downloadFolder } from '../api/folderService';
-import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
-import { useNotification } from '../contexts/NotificationContext';
+import { useFolderDownload } from '../hooks/useFolderDownload';
 
 export interface FolderListItemProps {
   folder: IFolder;
@@ -48,10 +46,9 @@ export default function FolderListItem({
 }: FolderListItemProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const [downloading, setDownloading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { showNotification } = useNotification();
+  const { start } = useFolderDownload();
 
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -66,17 +63,9 @@ export default function FolderListItem({
     callback?.();
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     handleClose();
-    setDownloading(true);
-    try {
-      const blob = await downloadFolder(folder.id);
-      triggerDownloadFromBlob(blob, `${folder.name}.zip`);
-    } catch {
-      showNotification('Failed to download folder', 'error');
-    } finally {
-      setDownloading(false);
-    }
+    start(folder.id, folder.name);
   };
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -130,6 +119,12 @@ export default function FolderListItem({
         outlineColor: 'primary.main',
         borderRadius: 1,
         cursor: 'pointer',
+        transition: (theme) => theme.transitions.create('background-color', {
+          duration: theme.transitions.duration.shortest,
+        }),
+        '&:hover': {
+          backgroundColor: 'action.hover',
+        },
       }}
       secondaryAction={
         <IconButton
@@ -159,9 +154,9 @@ export default function FolderListItem({
           <ListItemIcon><FolderOpen fontSize="small" /></ListItemIcon>
           Open
         </MenuItem>
-        <MenuItem onClick={handleDownload} disabled={downloading}>
+        <MenuItem onClick={handleDownload}>
           <ListItemIcon><Download fontSize="small" /></ListItemIcon>
-          {downloading ? 'Downloading…' : 'Download as zip'}
+          Download as zip
         </MenuItem>
         {isOwner && (
           <MenuItem onClick={() => handleAction(onRename)}>

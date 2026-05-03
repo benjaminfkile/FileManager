@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import UserProfileMenu from './UserProfileMenu';
+import DownloadsTray from './DownloadsTray';
 import {
   AppBar,
   Avatar,
@@ -104,6 +105,7 @@ export default function AppShell() {
           <IconButton color="inherit" onClick={toggleMode} aria-label="toggle dark mode">
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
           </IconButton>
+          <DownloadsTray />
           <IconButton aria-label="user avatar" onClick={(e) => setProfileAnchorEl(e.currentTarget)}>
             <Avatar sx={{ width: 32, height: 32 }}>{initials}</Avatar>
           </IconButton>

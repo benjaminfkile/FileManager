@@ -1,41 +1,71 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { DownloadsProvider } from './contexts/DownloadsContext';
 import App from './App';
-import { IUser } from './types';
+import FileUpload from './components/FileUpload';
+import { sessionKey, STORAGE_PREFIX } from './hooks/useChunkedUpload';
+import { IUser, IFile, IFolder } from './types';
 
 // Mock service modules
 jest.mock('./api/userService');
 jest.mock('./api/folderService');
 jest.mock('./api/fileService');
 jest.mock('./api/sharedService');
-jest.mock('./lib/cognitoClient');
+jest.mock('./api/chunkedUploadService');
+jest.mock('./utils/downloadHelpers');
+jest.mock('./lib/cognitoClient', () => ({
+  getIdToken: jest.fn(),
+  signOut: jest.fn(),
+  signUp: jest.fn(),
+  confirmSignUp: jest.fn(),
+  signIn: jest.fn(),
+  forgotPassword: jest.fn(),
+  confirmPassword: jest.fn(),
+}));
 jest.mock('./api/setupInterceptors', () => ({
   setupInterceptors: () => 0,
   ejectInterceptor: () => {},
 }));
 
 import { getMe, registerUser } from './api/userService';
-import { getRootFolders } from './api/folderService';
-import { getRootFiles } from './api/fileService';
+import {
+  getRootFolders,
+  prepareFolderDownload,
+  getFolderDownloadStatus,
+} from './api/folderService';
+import { getRootFiles, downloadFile, getUploadedParts } from './api/fileService';
 import { getSharedWithMe } from './api/sharedService';
-import { getIdToken, signOut, signUp, confirmSignUp, signIn } from './lib/cognitoClient';
+import { completeUpload, uploadPart, initiateUpload, abortUpload } from './api/chunkedUploadService';
+import { triggerDownloadFromUrl } from './utils/downloadHelpers';
+import { getIdToken, signOut, signUp, confirmSignUp, signIn, forgotPassword, confirmPassword } from './lib/cognitoClient';
 
 const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
 const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
 const mockSignUp = signUp as jest.MockedFunction<typeof signUp>;
 const mockConfirmSignUp = confirmSignUp as jest.MockedFunction<typeof confirmSignUp>;
 const mockSignIn = signIn as jest.MockedFunction<typeof signIn>;
+const mockForgotPassword = forgotPassword as jest.MockedFunction<typeof forgotPassword>;
+const mockConfirmPassword = confirmPassword as jest.MockedFunction<typeof confirmPassword>;
 
 const mockGetMe = getMe as jest.MockedFunction<typeof getMe>;
 const mockRegisterUser = registerUser as jest.MockedFunction<typeof registerUser>;
 const mockGetRootFolders = getRootFolders as jest.MockedFunction<typeof getRootFolders>;
 const mockGetRootFiles = getRootFiles as jest.MockedFunction<typeof getRootFiles>;
 const mockGetSharedWithMe = getSharedWithMe as jest.MockedFunction<typeof getSharedWithMe>;
+const mockDownloadFile = downloadFile as jest.MockedFunction<typeof downloadFile>;
+const mockPrepareFolderDownload = prepareFolderDownload as jest.MockedFunction<typeof prepareFolderDownload>;
+const mockGetFolderDownloadStatus = getFolderDownloadStatus as jest.MockedFunction<typeof getFolderDownloadStatus>;
+const mockTriggerDownloadFromUrl = triggerDownloadFromUrl as jest.MockedFunction<typeof triggerDownloadFromUrl>;
+const mockGetUploadedParts = getUploadedParts as jest.MockedFunction<typeof getUploadedParts>;
+const mockInitiateUpload = initiateUpload as jest.MockedFunction<typeof initiateUpload>;
+const mockUploadPart = uploadPart as jest.MockedFunction<typeof uploadPart>;
+const mockCompleteUpload = completeUpload as jest.MockedFunction<typeof completeUpload>;
+const mockAbortUpload = abortUpload as jest.MockedFunction<typeof abortUpload>;
 
 const fakeUser: IUser = {
   id: 'u1',
@@ -45,13 +75,40 @@ const fakeUser: IUser = {
   created_at: '2025-01-01T00:00:00Z',
 };
 
+const fakeFile: IFile = {
+  id: 'file-1',
+  user_id: 'u1',
+  folder_id: null,
+  name: 'report.pdf',
+  s3_key: 'files/report.pdf',
+  size_bytes: 2048,
+  mime_type: 'application/pdf',
+  is_deleted: false,
+  deleted_at: null,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-03-15T12:00:00Z',
+};
+
+const fakeFolder: IFolder = {
+  id: 'folder-1',
+  user_id: 'u1',
+  parent_folder_id: null,
+  name: 'My Folder',
+  is_deleted: false,
+  deleted_at: null,
+  created_at: '2026-02-10T00:00:00Z',
+  updated_at: '2026-03-20T12:00:00Z',
+};
+
 function renderApp(initialRoute = '/') {
   return render(
     <ThemeProvider>
       <MemoryRouter initialEntries={[initialRoute]}>
         <AuthProvider>
           <NotificationProvider>
-            <App />
+            <DownloadsProvider>
+              <App />
+            </DownloadsProvider>
           </NotificationProvider>
         </AuthProvider>
       </MemoryRouter>
@@ -66,9 +123,15 @@ beforeEach(() => {
   mockGetRootFolders.mockResolvedValue([]);
   mockGetRootFiles.mockResolvedValue([]);
   mockGetSharedWithMe.mockResolvedValue({ folders: [], files: [] });
+  mockTriggerDownloadFromUrl.mockResolvedValue(undefined);
   // Ensure desktop viewport so permanent drawer renders
   Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
   window.dispatchEvent(new Event('resize'));
+});
+
+afterEach(() => {
+  // Polling tests opt into fake timers; restore real timers between tests.
+  jest.useRealTimers();
 });
 
 describe('App integration tests', () => {
@@ -175,5 +238,240 @@ describe('App integration tests', () => {
 
     // Cognito signOut should have been called
     expect(mockSignOut).toHaveBeenCalled();
+  });
+
+  // ---- Scenario 5: Forgot password navigation ----
+  test('clicking "Forgot password?" on login navigates to /forgot-password', async () => {
+    renderApp('/login');
+
+    // Login page renders
+    await screen.findByRole('button', { name: /sign in/i });
+
+    // Click "Forgot password?"
+    await userEvent.click(screen.getByRole('button', { name: /forgot password\?/i }));
+
+    // ForgotPasswordPage step 1 renders
+    await screen.findByRole('button', { name: /send reset code/i });
+  });
+
+  // ---- Scenario 6: Single-file download triggers a URL redirect ----
+  test('single-file download fetches a signed URL and triggers the redirect helper', async () => {
+    mockGetIdToken.mockResolvedValue('fake-cognito-token');
+    mockGetMe.mockResolvedValue(fakeUser);
+    mockGetRootFiles.mockResolvedValue([fakeFile]);
+    mockDownloadFile.mockResolvedValue({
+      url: 'https://cdn.example.com/signed-report.pdf',
+      expiresAt: '2026-01-01T01:00:00.000Z',
+    });
+
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    });
+
+    // Open the file's actions menu (the only "actions" button — no folders rendered)
+    await userEvent.click(screen.getByLabelText('actions'));
+
+    // Click Download
+    const downloadItem = await screen.findByText('Download');
+    await userEvent.click(downloadItem);
+
+    await waitFor(() => {
+      expect(mockDownloadFile).toHaveBeenCalledWith('file-1');
+    });
+
+    await waitFor(() => {
+      expect(mockTriggerDownloadFromUrl).toHaveBeenCalledWith(
+        'https://cdn.example.com/signed-report.pdf',
+        'report.pdf',
+      );
+    });
+  });
+
+  // ---- Scenario 7: Folder download flow with polling ----
+  test('folder download polls until ready, triggers download, and shows tray entry', async () => {
+    mockGetIdToken.mockResolvedValue('fake-cognito-token');
+    mockGetMe.mockResolvedValue(fakeUser);
+    mockGetRootFolders.mockResolvedValue([fakeFolder]);
+    mockPrepareFolderDownload.mockResolvedValue({ jobId: 'job-1', status: 'pending' });
+    mockGetFolderDownloadStatus
+      .mockResolvedValueOnce({ status: 'processing' })
+      .mockResolvedValueOnce({
+        status: 'ready',
+        url: 'https://cdn.example.com/folder.zip',
+        expiresAt: '2026-01-01T01:00:00.000Z',
+      });
+
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(screen.getByText('My Folder')).toBeInTheDocument();
+    });
+
+    // Open the folder's actions menu under real timers so MUI's Menu transitions
+    // and findByText work normally.
+    await userEvent.click(screen.getByLabelText('actions'));
+    const downloadItem = await screen.findByText('Download as zip');
+
+    // Switch to fake timers BEFORE the click that triggers the polling loop,
+    // otherwise the first setTimeout(POLL_INTERVAL) is created against real
+    // timers and `jest.advanceTimersByTime` cannot make it fire.
+    jest.useFakeTimers();
+
+    // fireEvent (not userEvent) is used here because user-event v13 may
+    // schedule its own timers that won't fire under fake timers.
+    fireEvent.click(downloadItem);
+
+    // Helper: advance past one poll tick and flush enough microtasks for the
+    // resolved setTimeout/statusFn promise chain to drive React state updates.
+    const tickPoll = async () => {
+      await act(async () => {
+        jest.advanceTimersByTime(1500);
+      });
+      // Flush a few microtask turns: setTimeout resolution → await statusFn →
+      // updateJob state setter → continuation back into the loop.
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    };
+
+    // Flush the synchronous portion of `start()` and the prepareFn microtask.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockPrepareFolderDownload).toHaveBeenCalledWith('folder-1');
+
+    await tickPoll(); // first poll → 'processing'
+    await tickPoll(); // second poll → 'ready' + triggerDownloadFromUrl
+
+    expect(mockGetFolderDownloadStatus).toHaveBeenCalledTimes(2);
+    expect(mockTriggerDownloadFromUrl).toHaveBeenCalledWith(
+      'https://cdn.example.com/folder.zip',
+      'My Folder.zip',
+    );
+
+    jest.useRealTimers();
+
+    // Tray entry should reflect the completed job
+    await userEvent.click(screen.getByLabelText('downloads'));
+    await waitFor(() => {
+      expect(screen.getByText('Ready')).toBeInTheDocument();
+    });
+    // The folder name appears both in the list view AND in the tray entry.
+    expect(screen.getAllByText('My Folder').length).toBeGreaterThanOrEqual(2);
+  });
+
+  // ---- Scenario 8: Folder download cache-hit (no polling) ----
+  test('folder download cache-hit: prepare returns ready, no polling', async () => {
+    mockGetIdToken.mockResolvedValue('fake-cognito-token');
+    mockGetMe.mockResolvedValue(fakeUser);
+    mockGetRootFolders.mockResolvedValue([fakeFolder]);
+    mockPrepareFolderDownload.mockResolvedValue({
+      jobId: 'job-cached',
+      status: 'ready',
+      url: 'https://cdn.example.com/cached-folder.zip',
+      expiresAt: '2026-01-01T01:00:00.000Z',
+    });
+
+    renderApp('/');
+
+    await waitFor(() => {
+      expect(screen.getByText('My Folder')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByLabelText('actions'));
+    const downloadItem = await screen.findByText('Download as zip');
+    await userEvent.click(downloadItem);
+
+    await waitFor(() => {
+      expect(mockPrepareFolderDownload).toHaveBeenCalledWith('folder-1');
+    });
+
+    await waitFor(() => {
+      expect(mockTriggerDownloadFromUrl).toHaveBeenCalledWith(
+        'https://cdn.example.com/cached-folder.zip',
+        'My Folder.zip',
+      );
+    });
+
+    // Polling endpoint must NOT have been called for the cache-hit path
+    expect(mockGetFolderDownloadStatus).not.toHaveBeenCalled();
+  });
+
+  // ---- Scenario 9: Upload resume from a seeded localStorage session ----
+  test('seeded resume session shows the resume Dialog and Resume completes the upload', async () => {
+    // Build a small file with a stable identity so sessionKey is reproducible.
+    const file = new File(['content'], 'resume.bin', {
+      type: 'application/octet-stream',
+      lastModified: 1700000000000,
+    });
+    Object.defineProperty(file, 'size', { value: 7 });
+
+    const key = await sessionKey(file);
+    const savedSession = {
+      fileId: 'existing-file-id',
+      fileName: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      folderId: null,
+      completedParts: [{ partNumber: 1, etag: 'etag-1' }],
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(savedSession));
+
+    // Hook will validate the saved session against the server's view of parts.
+    mockGetUploadedParts.mockResolvedValue({
+      fileId: 'existing-file-id',
+      parts: [{ partNumber: 1 }],
+    });
+
+    // Resume completes the multipart upload — no further uploadPart calls expected
+    // because the file fits in a single chunk and that part is already done.
+    const completedFile: IFile = { ...fakeFile, id: 'existing-file-id', name: file.name };
+    mockCompleteUpload.mockResolvedValue(completedFile);
+
+    const onUploaded = jest.fn();
+    render(
+      <NotificationProvider>
+        <FileUpload folderId={null} onUploaded={onUploaded} />
+      </NotificationProvider>,
+    );
+
+    // Picking the file triggers the hook's resume detection.
+    const input = screen.getByTestId('file-input');
+    await userEvent.upload(input, file);
+
+    // Resume dialog appears; no uploadPart/initiateUpload calls have happened yet.
+    await waitFor(() => {
+      expect(screen.getByTestId('resume-upload-dialog')).toBeInTheDocument();
+    });
+    expect(mockGetUploadedParts).toHaveBeenCalledWith('existing-file-id');
+    expect(mockInitiateUpload).not.toHaveBeenCalled();
+    expect(mockUploadPart).not.toHaveBeenCalled();
+
+    // Click "Resume" — observe that hook.resume() was effectively invoked
+    // by checking its visible side effect: completeUpload is called with the
+    // saved parts (skipping initiateUpload entirely) and onUploaded fires.
+    await userEvent.click(screen.getByTestId('resume-confirm'));
+
+    await waitFor(() => {
+      expect(mockCompleteUpload).toHaveBeenCalledWith('existing-file-id', [
+        { partNumber: 1, etag: 'etag-1' },
+      ]);
+    });
+    await waitFor(() => {
+      expect(onUploaded).toHaveBeenCalledWith(completedFile);
+    });
+
+    // Resume path must not have re-initiated the upload or aborted it.
+    expect(mockInitiateUpload).not.toHaveBeenCalled();
+    expect(mockAbortUpload).not.toHaveBeenCalled();
+    // Session is cleared from storage after a successful complete.
+    expect(localStorage.getItem(STORAGE_PREFIX + key)).toBeNull();
   });
 });
