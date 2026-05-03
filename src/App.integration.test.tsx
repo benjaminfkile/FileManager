@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { DownloadsProvider } from './contexts/DownloadsContext';
 import App from './App';
 import { IUser } from './types';
 
@@ -61,7 +62,9 @@ function renderApp(initialRoute = '/') {
       <MemoryRouter initialEntries={[initialRoute]}>
         <AuthProvider>
           <NotificationProvider>
-            <App />
+            <DownloadsProvider>
+              <App />
+            </DownloadsProvider>
           </NotificationProvider>
         </AuthProvider>
       </MemoryRouter>

@@ -24,11 +24,13 @@ import {
   browseFolderViaLink,
   previewFileViaLink,
   downloadFileViaLink,
-  downloadFolderViaLink,
+  prepareFolderDownloadViaLink,
+  getFolderDownloadStatusViaLink,
   ResolvedFileLinkResponse,
   ResolvedFolderLinkResponse,
 } from '../api/shareLinkService';
-import { triggerDownloadFromUrl, triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { useFolderDownload } from '../hooks/useFolderDownload';
 import { IFile, IFolder } from '../types';
 import { isPreviewable } from '../utils/fileTypeHelpers';
 import { formatFileSize, formatDate } from '../utils/formatters';
@@ -66,8 +68,7 @@ export default function ShareLinkPage() {
   // Downloading state per file
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  // Downloading state for folder ZIP
-  const [downloadingFolder, setDownloadingFolder] = useState(false);
+  const { start: startFolderDownload, jobs: downloadJobs } = useFolderDownload();
 
   const resolveRoot = useCallback(async () => {
     if (!token) return;
@@ -162,17 +163,23 @@ export default function ShareLinkPage() {
     }
   };
 
-  const handleDownloadFolder = async () => {
+  const currentFolderId = breadcrumb[breadcrumb.length - 1]?.id;
+  const downloadingFolder = currentFolderId
+    ? downloadJobs.some(
+        (j) =>
+          j.folderId === currentFolderId &&
+          (j.status === 'pending' || j.status === 'processing')
+      )
+    : false;
+
+  const handleDownloadFolder = () => {
     if (!token) return;
     const folderId = breadcrumb[breadcrumb.length - 1]?.id;
     if (!folderId) return;
-    setDownloadingFolder(true);
-    try {
-      const blob = await downloadFolderViaLink(token, folderId);
-      triggerDownloadFromBlob(blob, `${currentFolderName}.zip`);
-    } finally {
-      setDownloadingFolder(false);
-    }
+    startFolderDownload(folderId, currentFolderName, {
+      prepareFn: () => prepareFolderDownloadViaLink(token, folderId),
+      statusFn: (jobId) => getFolderDownloadStatusViaLink(token, folderId, jobId),
+    });
   };
 
   const previewFetcher = useCallback(

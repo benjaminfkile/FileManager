@@ -90,3 +90,36 @@ export async function moveFolder(id: string, parentFolderId: string | null): Pro
   const { data } = await apiClient.patch<{ folder: IFolder }>(`/api/folders/${id}/move`, { parentFolderId });
   return data.folder;
 }
+
+export interface PrepareFolderDownloadResponse {
+  jobId: string;
+  status: 'ready' | 'pending' | 'processing';
+  url?: string;
+  expiresAt?: string;
+}
+
+export interface FolderDownloadStatusResponse {
+  status: 'ready' | 'pending' | 'processing' | 'failed';
+  url?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+// POST /api/folders/:id/download/prepare
+export async function prepareFolderDownload(id: string): Promise<PrepareFolderDownloadResponse> {
+  const { data } = await apiClient.post<PrepareFolderDownloadResponse>(
+    `/api/folders/${id}/download/prepare`
+  );
+  return data;
+}
+
+// GET /api/folders/:id/download/status/:jobId
+export async function getFolderDownloadStatus(
+  id: string,
+  jobId: string
+): Promise<FolderDownloadStatusResponse> {
+  const { data } = await apiClient.get<FolderDownloadStatusResponse>(
+    `/api/folders/${id}/download/status/${jobId}`
+  );
+  return data;
+}
