@@ -7,6 +7,7 @@ import * as recycleBinService from '../api/recycleBinService';
 import * as fileService from '../api/fileService';
 import * as folderService from '../api/folderService';
 import * as userService from '../api/userService';
+import * as useFolderDownloadModule from '../hooks/useFolderDownload';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
 import { IFolder, IFile, IUser } from '../types';
@@ -15,6 +16,9 @@ jest.mock('../api/recycleBinService');
 jest.mock('../api/fileService');
 jest.mock('../api/folderService');
 jest.mock('../api/userService');
+jest.mock('../hooks/useFolderDownload', () => ({
+  useFolderDownload: jest.fn(),
+}));
 
 const mockedGetRecycleBin = recycleBinService.getRecycleBin as jest.MockedFunction<typeof recycleBinService.getRecycleBin>;
 const mockedRestoreAll = recycleBinService.restoreAll as jest.MockedFunction<typeof recycleBinService.restoreAll>;
@@ -24,6 +28,8 @@ const mockedRestoreFile = fileService.restoreFile as jest.MockedFunction<typeof 
 const mockedPermanentDeleteFile = fileService.permanentDeleteFile as jest.MockedFunction<typeof fileService.permanentDeleteFile>;
 const mockedPermanentDeleteFolder = folderService.permanentDeleteFolder as jest.MockedFunction<typeof folderService.permanentDeleteFolder>;
 const mockedGetMe = userService.getMe as jest.MockedFunction<typeof userService.getMe>;
+
+const mockStartFolderDownload = jest.fn();
 
 const currentUser: IUser = {
   id: 'u1',
@@ -90,6 +96,10 @@ beforeEach(() => {
   mockedRestoreFile.mockResolvedValue(deletedFiles[0]);
   mockedPermanentDeleteFile.mockResolvedValue(undefined);
   mockedPermanentDeleteFolder.mockResolvedValue(undefined);
+  (useFolderDownloadModule.useFolderDownload as jest.Mock).mockReturnValue({
+    start: mockStartFolderDownload,
+    jobs: [],
+  });
 });
 
 describe('RecycleBinPage', () => {
@@ -264,5 +274,21 @@ describe('RecycleBinPage', () => {
     await waitFor(() => {
       expect(mockedPermanentDeleteFile).toHaveBeenCalledWith('dfile1');
     });
+  });
+
+  it('calls startFolderDownload when Download as zip is clicked for a folder', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Old Docs')).toBeInTheDocument();
+    });
+
+    // Open folder action menu
+    const actionButtons = screen.getAllByLabelText('actions');
+    await userEvent.click(actionButtons[0]);
+
+    await userEvent.click(screen.getByText('Download as zip'));
+
+    expect(mockStartFolderDownload).toHaveBeenCalledWith('df1', 'Old Docs');
   });
 });

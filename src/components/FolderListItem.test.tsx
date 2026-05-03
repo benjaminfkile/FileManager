@@ -3,14 +3,21 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FolderListItem, { FolderListItemProps } from './FolderListItem';
 import { IFolder } from '../types';
-import { NotificationProvider } from '../contexts/NotificationContext';
+import * as useFolderDownloadModule from '../hooks/useFolderDownload';
 
-jest.mock('../lib/cognitoClient', () => ({
-  __esModule: true,
-  default: {},
-  userPool: {},
+jest.mock('../hooks/useFolderDownload', () => ({
+  useFolderDownload: jest.fn(),
 }));
-jest.mock('../api/folderService');
+
+const mockStart = jest.fn();
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (useFolderDownloadModule.useFolderDownload as jest.Mock).mockReturnValue({
+    start: mockStart,
+    jobs: [],
+  });
+});
 
 const baseFolder: IFolder = {
   id: 'f1',
@@ -30,11 +37,7 @@ function renderComponent(overrides: Partial<FolderListItemProps> = {}) {
     onClick: jest.fn(),
     ...overrides,
   };
-  return render(
-    <NotificationProvider>
-      <FolderListItem {...props} />
-    </NotificationProvider>
-  );
+  return render(<FolderListItem {...props} />);
 }
 
 describe('FolderListItem', () => {
@@ -108,6 +111,14 @@ describe('FolderListItem', () => {
     await userEvent.click(screen.getByText('Open'));
 
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls start when Download as zip is clicked', async () => {
+    renderComponent();
+    await userEvent.click(screen.getByLabelText('actions'));
+    await userEvent.click(screen.getByText('Download as zip'));
+
+    expect(mockStart).toHaveBeenCalledWith(baseFolder.id, baseFolder.name);
   });
 
   it('shows "Move to..." when isOwner and onMove provided', async () => {

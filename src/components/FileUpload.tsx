@@ -1,10 +1,22 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Typography, LinearProgress, Alert, Link } from '@mui/material';
+import {
+  Box,
+  Typography,
+  LinearProgress,
+  Alert,
+  Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useChunkedUpload } from '../hooks/useChunkedUpload';
 import { IFile } from '../types';
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 ** 3; // 50 GB
+export const MAX_FILE_SIZE_BYTES = 5 * 1024 ** 4; // 5 TB
 
 export interface FileUploadProps {
   folderId: string | null;
@@ -14,31 +26,69 @@ export interface FileUploadProps {
 export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload, progress, isUploading, error } = useChunkedUpload();
+  const {
+    upload,
+    resume,
+    discardResume,
+    progress,
+    isUploading,
+    error,
+    pendingResume,
+  } = useChunkedUpload();
 
-  const handleFile = useCallback(
+  const startUpload = useCallback(
     async (file: File) => {
-      setSizeError(null);
-
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setSizeError('File exceeds the maximum upload size of 50 GB');
-        return;
-      }
-
-      setFileName(file.name);
-
       try {
         const result = await upload({ file, folderId: folderId ?? undefined });
-        onUploaded(result);
-        setFileName(null);
+        if (result) {
+          onUploaded(result);
+          setFileName(null);
+          setPendingFile(null);
+        }
       } catch {
         // error is surfaced via the hook's error state
       }
     },
     [folderId, onUploaded, upload],
   );
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      setSizeError(null);
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setSizeError('File exceeds the maximum upload size of 5 TB');
+        return;
+      }
+
+      setFileName(file.name);
+      setPendingFile(file);
+
+      await startUpload(file);
+    },
+    [startUpload],
+  );
+
+  const handleResume = useCallback(async () => {
+    try {
+      const result = await resume();
+      onUploaded(result);
+      setFileName(null);
+      setPendingFile(null);
+    } catch {
+      // error is surfaced via the hook's error state
+    }
+  }, [onUploaded, resume]);
+
+  const handleStartOver = useCallback(async () => {
+    discardResume();
+    if (pendingFile) {
+      await startUpload(pendingFile);
+    }
+  }, [discardResume, pendingFile, startUpload]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -75,6 +125,8 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
   };
 
   const displayError = sizeError ?? error;
+  const showProgress = isUploading && fileName && !pendingResume;
+  const promptedFileName = pendingFile?.name ?? fileName ?? '';
 
   return (
     <Box>
@@ -111,7 +163,30 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
         />
       </Box>
 
-      {isUploading && fileName && (
+      <Dialog
+        open={Boolean(pendingResume)}
+        aria-labelledby="resume-upload-title"
+        data-testid="resume-upload-dialog"
+      >
+        <DialogTitle id="resume-upload-title">
+          Resume previous upload of {promptedFileName}?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            We found an interrupted upload for this file. Resume where you left off, or start over from the beginning.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleStartOver} data-testid="resume-start-over">
+            Start over
+          </Button>
+          <Button onClick={handleResume} variant="contained" data-testid="resume-confirm">
+            Resume
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {showProgress && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="body2" sx={{ mb: 1 }}>
             {fileName}

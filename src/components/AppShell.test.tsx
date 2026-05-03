@@ -15,6 +15,14 @@ jest.mock('../theme/ThemeProvider', () => ({
   useThemeMode: () => mockUseThemeMode(),
 }));
 
+// Mock DownloadsTray to avoid deep context dependencies
+jest.mock('./DownloadsTray', () => ({
+  __esModule: true,
+  default: function MockDownloadsTray() {
+    return require('react').createElement('button', { 'aria-label': 'downloads' }, '0');
+  },
+}));
+
 function renderAtRoute(route = '/') {
   return render(
     <MemoryRouter initialEntries={[route]}>
@@ -131,5 +139,10 @@ describe('AppShell', () => {
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('jdoe')).toBeInTheDocument();
     expect(screen.getByText('Logout')).toBeInTheDocument();
+  });
+
+  it('renders Downloads icon button in the toolbar', () => {
+    renderAtRoute('/');
+    expect(screen.getByLabelText('downloads')).toBeInTheDocument();
   });
 });

@@ -15,6 +15,9 @@ jest.mock('../api/folderService');
 jest.mock('../api/fileService');
 jest.mock('../api/userService');
 jest.mock('../api/sharedService');
+jest.mock('../hooks/useFolderDownload', () => ({
+  useFolderDownload: () => ({ start: jest.fn(), jobs: [] }),
+}));
 jest.mock('../lib/cognitoClient', () => ({
   getIdToken: () => Promise.resolve('fake-token'),
   signIn: jest.fn(),

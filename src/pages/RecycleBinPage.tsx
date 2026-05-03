@@ -18,8 +18,10 @@ import {
   RestoreFromTrash,
   DeleteForever,
   DeleteSweep,
+  Download,
 } from '@mui/icons-material';
 import { useNotification } from '../contexts/NotificationContext';
+import { useFolderDownload } from '../hooks/useFolderDownload';
 import { getRecycleBin, restoreAll, emptyRecycleBin } from '../api/recycleBinService';
 import { restoreFile, permanentDeleteFile } from '../api/fileService';
 import { restoreFolder, permanentDeleteFolder } from '../api/folderService';
@@ -58,6 +60,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 export default function RecycleBinPage() {
   const { showNotification } = useNotification();
+  const { start: startFolderDownload } = useFolderDownload();
 
   const [folders, setFolders] = useState<IFolder[]>([]);
   const [files, setFiles] = useState<IFile[]>([]);
@@ -191,6 +194,14 @@ export default function RecycleBinPage() {
                 {folders.map((folder) => (
                   <ListItem
                     key={folder.id}
+                    sx={{
+                      transition: (theme) => theme.transitions.create('background-color', {
+                        duration: theme.transitions.duration.shortest,
+                      }),
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
                     secondaryAction={
                       <IconButton
                         edge="end"
@@ -226,6 +237,14 @@ export default function RecycleBinPage() {
                   return (
                     <ListItem
                       key={file.id}
+                      sx={{
+                        transition: (theme) => theme.transitions.create('background-color', {
+                          duration: theme.transitions.duration.shortest,
+                        }),
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
                       secondaryAction={
                         <IconButton
                           edge="end"
@@ -256,6 +275,20 @@ export default function RecycleBinPage() {
             open={Boolean(menuAnchor)}
             onClose={handleMenuClose}
           >
+            {menuAnchor?.type === 'folder' && (
+              <MenuItem
+                onClick={() => {
+                  if (!menuAnchor) return;
+                  const folder = folders.find((f) => f.id === menuAnchor.id);
+                  if (!folder) return;
+                  handleMenuClose();
+                  startFolderDownload(folder.id, folder.name);
+                }}
+              >
+                <ListItemIcon><Download fontSize="small" /></ListItemIcon>
+                Download as zip
+              </MenuItem>
+            )}
             <MenuItem
               onClick={() => {
                 if (!menuAnchor) return;
