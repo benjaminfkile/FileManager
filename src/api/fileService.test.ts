@@ -20,6 +20,7 @@ import {
   unshareFile,
   getFileShares,
   moveFile,
+  getUploadedParts,
 } from './fileService';
 import { IFile, ISharedUser } from '../types';
 
@@ -205,6 +206,25 @@ describe('getFileShares', () => {
     expect(result).toEqual(response);
     expect(mock.history.get).toHaveLength(1);
     expect(mock.history.get[0].url).toBe('/api/files/file-1/shares');
+  });
+});
+
+describe('getUploadedParts', () => {
+  it('GETs /api/files/uploads/:fileId/parts and returns the response', async () => {
+    const response = {
+      fileId: 'file-1',
+      parts: [
+        { partNumber: 1, etag: 'etag-1' },
+        { partNumber: 2, etag: 'etag-2' },
+      ],
+    };
+    mock.onGet('/api/files/uploads/file-1/parts').reply(200, response);
+
+    const result = await getUploadedParts('file-1');
+
+    expect(result).toEqual(response);
+    expect(mock.history.get).toHaveLength(1);
+    expect(mock.history.get[0].url).toBe('/api/files/uploads/file-1/parts');
   });
 });
 
