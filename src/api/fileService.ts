@@ -19,6 +19,11 @@ export interface PreviewFileResponse {
   expiresAt: string;
 }
 
+export interface DownloadFileResponse {
+  url: string;
+  expiresAt: string;
+}
+
 export interface ShareFileResponse {
   sharedWith: ISharedUser;
 }
@@ -50,11 +55,9 @@ export async function uploadFile(payload: UploadFilePayload): Promise<UploadFile
   return data as UploadFileResponse;
 }
 
-// GET /api/files/:id/download — streams the file; returns a Blob ready for saving
-export async function downloadFile(id: string): Promise<Blob> {
-  const { data } = await apiClient.get<Blob>(`/api/files/${id}/download`, {
-    responseType: 'blob',
-  });
+// GET /api/files/:id/download — returns { url, expiresAt } for client-side redirect
+export async function downloadFile(id: string): Promise<DownloadFileResponse> {
+  const { data } = await apiClient.get<DownloadFileResponse>(`/api/files/${id}/download`);
   return data;
 }
 

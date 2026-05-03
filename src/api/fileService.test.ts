@@ -1,4 +1,12 @@
 import MockAdapter from 'axios-mock-adapter';
+
+jest.mock('../lib/cognitoClient', () => ({
+  __esModule: true,
+  default: {},
+  userPool: {},
+  getIdToken: jest.fn().mockResolvedValue(null),
+}));
+
 import apiClient from './apiClient';
 import {
   uploadFile,
@@ -82,16 +90,19 @@ describe('uploadFile', () => {
 });
 
 describe('downloadFile', () => {
-  it('GETs /api/files/:id/download with responseType blob and returns a Blob', async () => {
-    const fakeBlob = new Blob(['file bytes'], { type: 'image/png' });
-    mock.onGet('/api/files/file-1/download').reply(200, fakeBlob);
+  it('GETs /api/files/:id/download and returns { url, expiresAt }', async () => {
+    const response = {
+      url: 'https://cdn.example.com/signed-url',
+      expiresAt: '2026-01-01T01:00:00.000Z',
+    };
+    mock.onGet('/api/files/file-1/download').reply(200, response);
 
     const result = await downloadFile('file-1');
 
-    expect(result).toBeInstanceOf(Blob);
+    expect(result).toEqual(response);
     expect(mock.history.get).toHaveLength(1);
     expect(mock.history.get[0].url).toBe('/api/files/file-1/download');
-    expect(mock.history.get[0].responseType).toBe('blob');
+    expect(mock.history.get[0].responseType).toBeUndefined();
   });
 });
 

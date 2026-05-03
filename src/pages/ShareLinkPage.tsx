@@ -28,7 +28,7 @@ import {
   ResolvedFileLinkResponse,
   ResolvedFolderLinkResponse,
 } from '../api/shareLinkService';
-import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { triggerDownloadFromUrl, triggerDownloadFromBlob } from '../utils/downloadHelpers';
 import { IFile, IFolder } from '../types';
 import { isPreviewable } from '../utils/fileTypeHelpers';
 import { formatFileSize, formatDate } from '../utils/formatters';
@@ -155,8 +155,8 @@ export default function ShareLinkPage() {
     if (!token) return;
     setDownloading(file.id);
     try {
-      const blob = await downloadFileViaLink(token, file.id);
-      triggerDownloadFromBlob(blob, file.name);
+      const { url } = await downloadFileViaLink(token, file.id);
+      await triggerDownloadFromUrl(url, file.name);
     } finally {
       setDownloading(null);
     }

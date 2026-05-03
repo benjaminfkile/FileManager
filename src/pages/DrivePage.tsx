@@ -9,7 +9,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { getRootFolders, renameFolder, deleteFolder, moveFolder } from '../api/folderService';
 import { getRootFiles, downloadFile, renameFile, deleteFile, moveFile } from '../api/fileService';
 import { getSharedWithMe } from '../api/sharedService';
-import { triggerDownloadFromBlob } from '../utils/downloadHelpers';
+import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
 import { IFolder, IFile, ISharedByUser } from '../types';
 import Breadcrumb from '../components/Breadcrumb';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -272,8 +272,8 @@ export default function DrivePage() {
             const file = files.find((f) => f.id === previewTarget.id);
             if (!file) return;
             try {
-              const blob = await downloadFile(file.id);
-              triggerDownloadFromBlob(blob, file.name);
+              const { url } = await downloadFile(file.id);
+              await triggerDownloadFromUrl(url, file.name);
             } catch {
               showNotification('Failed to download file', 'error');
             }
