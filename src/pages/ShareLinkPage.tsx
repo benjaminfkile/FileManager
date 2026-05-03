@@ -24,8 +24,7 @@ import {
   browseFolderViaLink,
   previewFileViaLink,
   downloadFileViaLink,
-  prepareFolderDownloadViaLink,
-  getFolderDownloadStatusViaLink,
+  getFolderDownloadManifestViaLink,
   ResolvedFileLinkResponse,
   ResolvedFolderLinkResponse,
 } from '../api/shareLinkService';
@@ -177,8 +176,7 @@ export default function ShareLinkPage() {
     const folderId = breadcrumb[breadcrumb.length - 1]?.id;
     if (!folderId) return;
     startFolderDownload(folderId, currentFolderName, {
-      prepareFn: () => prepareFolderDownloadViaLink(token, folderId),
-      statusFn: (jobId) => getFolderDownloadStatusViaLink(token, folderId, jobId),
+      manifestFn: () => getFolderDownloadManifestViaLink(token, folderId),
     });
   };
 

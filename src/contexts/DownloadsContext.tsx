@@ -2,37 +2,28 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 
 export type JobStatus = 'pending' | 'processing' | 'ready' | 'failed';
 
-export interface PrepareResponse {
-  jobId: string;
-  status: string;
-  url?: string;
-  expiresAt?: string;
-}
-
-export interface StatusResponse {
-  status: string;
-  url?: string;
-  expiresAt?: string;
-  error?: string;
-}
-
 export interface DownloadJob {
   id: string;
   folderId: string;
   folderName: string;
   status: JobStatus;
-  url?: string;
+  /** Bytes downloaded so far. Updated continuously while streaming. */
+  loadedBytes: number;
+  /** Total bytes from the manifest, or 0 if unknown. */
+  totalBytes: number;
   error?: string;
   createdAt: number;
   completedAt?: number;
-  prepareFn: () => Promise<PrepareResponse>;
-  statusFn: (jobId: string) => Promise<StatusResponse>;
+  /** AbortController so the user can cancel. */
+  abort?: () => void;
+  /** Used by the tray's "retry" action. */
+  retry?: () => void;
 }
 
 interface DownloadsContextValue {
   jobs: DownloadJob[];
   addJob: (job: DownloadJob) => void;
-  updateJob: (id: string, updates: Partial<Omit<DownloadJob, 'id' | 'prepareFn' | 'statusFn'>>) => void;
+  updateJob: (id: string, updates: Partial<Omit<DownloadJob, 'id'>>) => void;
   removeJob: (id: string) => void;
 }
 
@@ -48,7 +39,7 @@ export function DownloadsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateJob = useCallback(
-    (id: string, updates: Partial<Omit<DownloadJob, 'id' | 'prepareFn' | 'statusFn'>>) => {
+    (id: string, updates: Partial<Omit<DownloadJob, 'id'>>) => {
       setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...updates } : j)));
     },
     []

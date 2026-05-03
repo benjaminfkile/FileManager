@@ -112,48 +112,26 @@ export async function downloadFileViaLink(token: string, fileId: string): Promis
   return data;
 }
 
-// GET /api/share-links/:token/folders/:folderId/download (public) — returns a Blob (zip)
-export async function downloadFolderViaLink(token: string, folderId: string): Promise<Blob> {
-  const { data } = await publicClient.get<Blob>(
-    `/api/share-links/${token}/folders/${folderId}/download`,
-    { responseType: 'blob' }
-  );
-  return data;
+export interface DownloadManifestEntryViaLink {
+  zipPath: string;
+  url: string;
+  size: number;
 }
 
-export interface PrepareFolderDownloadViaLinkResponse {
-  jobId: string;
-  status: 'ready' | 'pending' | 'processing';
-  url?: string;
-  expiresAt?: string;
+export interface DownloadManifestViaLink {
+  folderName: string;
+  totalBytes: number;
+  expiresAt: string;
+  files: DownloadManifestEntryViaLink[];
 }
 
-export interface FolderDownloadStatusViaLinkResponse {
-  status: 'ready' | 'pending' | 'processing' | 'failed';
-  url?: string;
-  expiresAt?: string;
-  error?: string;
-}
-
-// POST /api/share-links/:token/folders/:folderId/download/prepare (public)
-export async function prepareFolderDownloadViaLink(
+// GET /api/share-links/:token/folders/:folderId/download-manifest (public)
+export async function getFolderDownloadManifestViaLink(
   token: string,
   folderId: string
-): Promise<PrepareFolderDownloadViaLinkResponse> {
-  const { data } = await publicClient.post<PrepareFolderDownloadViaLinkResponse>(
-    `/api/share-links/${token}/folders/${folderId}/download/prepare`
-  );
-  return data;
-}
-
-// GET /api/share-links/:token/folders/:folderId/download/status/:jobId (public)
-export async function getFolderDownloadStatusViaLink(
-  token: string,
-  folderId: string,
-  jobId: string
-): Promise<FolderDownloadStatusViaLinkResponse> {
-  const { data } = await publicClient.get<FolderDownloadStatusViaLinkResponse>(
-    `/api/share-links/${token}/folders/${folderId}/download/status/${jobId}`
+): Promise<DownloadManifestViaLink> {
+  const { data } = await publicClient.get<DownloadManifestViaLink>(
+    `/api/share-links/${token}/folders/${folderId}/download-manifest`
   );
   return data;
 }

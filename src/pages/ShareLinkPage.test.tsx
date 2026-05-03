@@ -183,8 +183,7 @@ describe('ShareLinkPage', () => {
         'root-folder',
         'Shared Folder',
         expect.objectContaining({
-          prepareFn: expect.any(Function),
-          statusFn: expect.any(Function),
+          manifestFn: expect.any(Function),
         })
       );
     });
@@ -232,9 +231,9 @@ describe('ShareLinkPage', () => {
             folderId: 'root-folder',
             folderName: 'Shared Folder',
             status: 'processing',
+            loadedBytes: 0,
+            totalBytes: 0,
             createdAt: Date.now(),
-            prepareFn: jest.fn(),
-            statusFn: jest.fn(),
           },
         ],
       });

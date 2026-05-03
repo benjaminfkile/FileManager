@@ -1,88 +1,140 @@
-import { useCallback } from 'react';
-import { useDownloads, DownloadJob, PrepareResponse, StatusResponse } from '../contexts/DownloadsContext';
-import { prepareFolderDownload, getFolderDownloadStatus } from '../api/folderService';
-import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { useCallback, useRef } from 'react';
+import { useDownloads, DownloadJob } from '../contexts/DownloadsContext';
+import {
+  getFolderDownloadManifest,
+  DownloadManifest,
+} from '../api/folderService';
+import { streamZipToDisk } from '../utils/folderZipDownload';
 import { useNotification } from '../contexts/NotificationContext';
 
-const POLL_INTERVAL = 1500;
-
 export interface StartOptions {
-  prepareFn?: () => Promise<PrepareResponse>;
-  statusFn?: (jobId: string) => Promise<StatusResponse>;
-  signal?: AbortSignal;
-  /** Override poll interval (ms). Intended for tests. */
-  _pollInterval?: number;
+  /**
+   * Custom manifest fetcher. The default hits the protected
+   * `/api/folders/:id/download-manifest` endpoint; share-link callers pass
+   * a fetcher that hits the public share-link endpoint instead.
+   */
+  manifestFn?: () => Promise<DownloadManifest>;
+  /**
+   * Custom progress UI throttle, in ms. Updates flush at most this often.
+   * Defaults to 250ms. Tests can pass 0 for synchronous flushing.
+   */
+  _progressFlushMs?: number;
 }
+
+const DEFAULT_PROGRESS_FLUSH_MS = 250;
 
 export function useFolderDownload() {
   const { jobs, addJob, updateJob } = useDownloads();
   const { showNotification } = useNotification();
+  // Track last-emitted progress per job so the UI doesn't re-render on every chunk.
+  const lastFlushRef = useRef<Map<string, number>>(new Map());
 
   const start = useCallback(
     async (folderId: string, folderName: string, options?: StartOptions): Promise<void> => {
-      const signal = options?.signal;
-      const pollInterval = options?._pollInterval ?? POLL_INTERVAL;
-      const prepareFn = options?.prepareFn ?? (() => prepareFolderDownload(folderId));
-      const statusFn =
-        options?.statusFn ?? ((jobId: string) => getFolderDownloadStatus(folderId, jobId));
+      const manifestFn =
+        options?.manifestFn ?? (() => getFolderDownloadManifest(folderId));
+      const flushMs = options?._progressFlushMs ?? DEFAULT_PROGRESS_FLUSH_MS;
 
       const jobId = `${folderId}-${Date.now()}`;
+      const controller = new AbortController();
+
+      const retry = () => {
+        start(folderId, folderName, options);
+      };
+
       const job: DownloadJob = {
         id: jobId,
         folderId,
         folderName,
         status: 'pending',
+        loadedBytes: 0,
+        totalBytes: 0,
         createdAt: Date.now(),
-        prepareFn,
-        statusFn,
+        abort: () => controller.abort(),
+        retry,
       };
       addJob(job);
 
       try {
-        const prepareResult = await prepareFn();
-        if (signal?.aborted) return;
+        const manifest = await manifestFn();
+        if (controller.signal.aborted) return;
 
-        if (prepareResult.status === 'ready' && prepareResult.url) {
-          updateJob(jobId, { status: 'ready', url: prepareResult.url, completedAt: Date.now() });
-          await triggerDownloadFromUrl(prepareResult.url, `${folderName}.zip`);
+        if (manifest.files.length === 0) {
+          updateJob(jobId, {
+            status: 'failed',
+            error: 'Folder is empty',
+            completedAt: Date.now(),
+          });
+          showNotification('Folder is empty', 'error');
           return;
         }
 
-        updateJob(jobId, { status: 'processing' });
+        updateJob(jobId, {
+          status: 'processing',
+          totalBytes: manifest.totalBytes,
+        });
 
-        while (!signal?.aborted) {
-          await new Promise<void>((resolve) => setTimeout(resolve, pollInterval));
-          if (signal?.aborted) break;
+        let pending = 0;
+        let lastFlush = Date.now();
+        lastFlushRef.current.set(jobId, 0);
 
-          const statusResult = await statusFn(prepareResult.jobId);
-          if (signal?.aborted) break;
+        const flush = () => {
+          if (pending === 0) return;
+          const prev = lastFlushRef.current.get(jobId) ?? 0;
+          const next = prev + pending;
+          lastFlushRef.current.set(jobId, next);
+          pending = 0;
+          updateJob(jobId, { loadedBytes: next });
+        };
 
-          if (statusResult.status === 'ready' && statusResult.url) {
-            updateJob(jobId, {
-              status: 'ready',
-              url: statusResult.url,
-              completedAt: Date.now(),
-            });
-            await triggerDownloadFromUrl(statusResult.url, `${folderName}.zip`);
-            return;
-          }
+        await streamZipToDisk({
+          files: manifest.files,
+          folderName: manifest.folderName,
+          signal: controller.signal,
+          onProgress: (bytes) => {
+            pending += bytes;
+            const now = Date.now();
+            if (flushMs === 0 || now - lastFlush >= flushMs) {
+              lastFlush = now;
+              flush();
+            }
+          },
+        });
 
-          if (statusResult.status === 'failed') {
-            const errorMsg = statusResult.error ?? 'Download failed';
-            updateJob(jobId, { status: 'failed', error: errorMsg, completedAt: Date.now() });
-            showNotification(errorMsg, 'error');
-            return;
-          }
+        flush();
+        if (controller.signal.aborted) {
+          updateJob(jobId, {
+            status: 'failed',
+            error: 'Cancelled',
+            completedAt: Date.now(),
+          });
+          return;
         }
 
-        if (signal?.aborted) {
-          updateJob(jobId, { status: 'failed', error: 'Cancelled', completedAt: Date.now() });
+        updateJob(jobId, {
+          status: 'ready',
+          completedAt: Date.now(),
+        });
+      } catch (err) {
+        const isAbort =
+          (err as DOMException)?.name === 'AbortError' || controller.signal.aborted;
+        if (isAbort) {
+          updateJob(jobId, {
+            status: 'failed',
+            error: 'Cancelled',
+            completedAt: Date.now(),
+          });
+          return;
         }
-      } catch {
-        if (signal?.aborted) return;
-        const errorMsg = 'Failed to download folder';
-        updateJob(jobId, { status: 'failed', error: errorMsg, completedAt: Date.now() });
-        showNotification(errorMsg, 'error');
+        const message = (err as Error)?.message ?? 'Failed to download folder';
+        updateJob(jobId, {
+          status: 'failed',
+          error: message,
+          completedAt: Date.now(),
+        });
+        showNotification(message, 'error');
+      } finally {
+        lastFlushRef.current.delete(jobId);
       }
     },
     [addJob, updateJob, showNotification]

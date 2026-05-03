@@ -3,8 +3,8 @@ import {
   Badge,
   Box,
   Button,
-  CircularProgress,
   IconButton,
+  LinearProgress,
   List,
   ListItem,
   ListItemText,
@@ -14,15 +14,13 @@ import {
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import { useDownloads, DownloadJob } from '../contexts/DownloadsContext';
-import { useFolderDownload } from '../hooks/useFolderDownload';
-import { triggerDownloadFromUrl } from '../utils/downloadHelpers';
+import { formatFileSize } from '../utils/formatters';
 
 const COMPLETED_TTL = 30_000;
 
 export default function DownloadsTray() {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const { jobs, removeJob } = useDownloads();
-  const { start } = useFolderDownload();
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const isOpen = Boolean(anchorEl);
@@ -57,18 +55,6 @@ export default function DownloadsTray() {
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
 
-  const handleRetry = (job: DownloadJob) => {
-    removeJob(job.id);
-    start(job.folderId, job.folderName, {
-      prepareFn: job.prepareFn,
-      statusFn: job.statusFn,
-    });
-  };
-
-  const handleOpenDownload = (url: string, folderName: string) => {
-    triggerDownloadFromUrl(url, `${folderName}.zip`);
-  };
-
   return (
     <>
       <Tooltip title="Downloads">
@@ -85,7 +71,7 @@ export default function DownloadsTray() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Box sx={{ minWidth: 300, maxWidth: 420, p: 1 }}>
+        <Box sx={{ minWidth: 320, maxWidth: 460, p: 1 }}>
           <Typography variant="subtitle2" sx={{ px: 1, py: 0.5 }}>
             Downloads
           </Typography>
@@ -96,47 +82,69 @@ export default function DownloadsTray() {
           ) : (
             <List dense disablePadding>
               {jobs.map((job) => (
-                <ListItem
-                  key={job.id}
-                  secondaryAction={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      {(job.status === 'pending' || job.status === 'processing') && (
-                        <CircularProgress size={16} />
-                      )}
-                      {job.status === 'failed' && (
-                        <Button size="small" onClick={() => handleRetry(job)}>
-                          Retry
-                        </Button>
-                      )}
-                      {job.status === 'ready' && job.url && (
-                        <Button
-                          size="small"
-                          onClick={() => handleOpenDownload(job.url!, job.folderName)}
-                        >
-                          Open
-                        </Button>
-                      )}
-                    </Box>
-                  }
-                >
-                  <ListItemText
-                    primary={job.folderName}
-                    secondary={
-                      job.status === 'pending'
-                        ? 'Preparing...'
-                        : job.status === 'processing'
-                        ? 'Downloading...'
-                        : job.status === 'ready'
-                        ? 'Ready'
-                        : `Failed: ${job.error ?? 'Unknown error'}`
-                    }
-                  />
-                </ListItem>
+                <DownloadRow key={job.id} job={job} />
               ))}
             </List>
           )}
         </Box>
       </Popover>
     </>
+  );
+}
+
+interface DownloadRowProps {
+  job: DownloadJob;
+}
+
+function DownloadRow({ job }: DownloadRowProps) {
+  const inFlight = job.status === 'pending' || job.status === 'processing';
+  const ratio =
+    job.totalBytes > 0 ? Math.min(1, job.loadedBytes / job.totalBytes) : 0;
+  const percent = Math.floor(ratio * 100);
+
+  let statusLine: string;
+  if (job.status === 'pending') {
+    statusLine = 'Preparing…';
+  } else if (job.status === 'processing') {
+    if (job.totalBytes > 0) {
+      statusLine = `${formatFileSize(job.loadedBytes)} of ${formatFileSize(
+        job.totalBytes
+      )} (${percent}%)`;
+    } else {
+      statusLine = `${formatFileSize(job.loadedBytes)} downloaded`;
+    }
+  } else if (job.status === 'ready') {
+    statusLine = `Saved · ${formatFileSize(job.loadedBytes || job.totalBytes)}`;
+  } else {
+    statusLine = `Failed: ${job.error ?? 'Unknown error'}`;
+  }
+
+  return (
+    <ListItem
+      alignItems="flex-start"
+      sx={{ flexDirection: 'column', alignItems: 'stretch', py: 1 }}
+      secondaryAction={
+        inFlight ? (
+          <Button size="small" onClick={() => job.abort?.()}>
+            Cancel
+          </Button>
+        ) : job.status === 'failed' && job.retry ? (
+          <Button size="small" onClick={() => job.retry?.()}>
+            Retry
+          </Button>
+        ) : null
+      }
+    >
+      <ListItemText primary={job.folderName} secondary={statusLine} />
+      {inFlight && (
+        <Box sx={{ mt: 0.5, mr: 6 }}>
+          {job.totalBytes > 0 ? (
+            <LinearProgress variant="determinate" value={percent} />
+          ) : (
+            <LinearProgress />
+          )}
+        </Box>
+      )}
+    </ListItem>
   );
 }

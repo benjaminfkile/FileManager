@@ -17,6 +17,7 @@
     "@types/react-dom": "^19.2.3",
     "amazon-cognito-identity-js": "^6.3.16",
     "axios": "^1.15.0",
+    "client-zip": "^2.5.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^6.30.3",
@@ -34,6 +35,12 @@
     "extends": [
       "react-app",
       "react-app/jest"
+    ]
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!(client-zip)/).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "^.+\\.module\\.(css|sass|scss)$"
     ]
   },
   "browserslist": {

@@ -49,14 +49,6 @@ export async function deleteFolder(id: string): Promise<void> {
   await apiClient.delete(`/api/folders/${id}`);
 }
 
-// GET /api/folders/:id/download
-export async function downloadFolder(id: string): Promise<Blob> {
-  const { data } = await apiClient.get<Blob>(`/api/folders/${id}/download`, {
-    responseType: 'blob',
-  });
-  return data;
-}
-
 // POST /api/folders/:id/restore
 export async function restoreFolder(id: string): Promise<IFolder> {
   const { data } = await apiClient.post<{ data: IFolder }>(`/api/folders/${id}/restore`);
@@ -91,35 +83,23 @@ export async function moveFolder(id: string, parentFolderId: string | null): Pro
   return data.folder;
 }
 
-export interface PrepareFolderDownloadResponse {
-  jobId: string;
-  status: 'ready' | 'pending' | 'processing';
-  url?: string;
-  expiresAt?: string;
+export interface DownloadManifestEntry {
+  zipPath: string;
+  url: string;
+  size: number;
 }
 
-export interface FolderDownloadStatusResponse {
-  status: 'ready' | 'pending' | 'processing' | 'failed';
-  url?: string;
-  expiresAt?: string;
-  error?: string;
+export interface DownloadManifest {
+  folderName: string;
+  totalBytes: number;
+  expiresAt: string;
+  files: DownloadManifestEntry[];
 }
 
-// POST /api/folders/:id/download/prepare
-export async function prepareFolderDownload(id: string): Promise<PrepareFolderDownloadResponse> {
-  const { data } = await apiClient.post<PrepareFolderDownloadResponse>(
-    `/api/folders/${id}/download/prepare`
-  );
-  return data;
-}
-
-// GET /api/folders/:id/download/status/:jobId
-export async function getFolderDownloadStatus(
-  id: string,
-  jobId: string
-): Promise<FolderDownloadStatusResponse> {
-  const { data } = await apiClient.get<FolderDownloadStatusResponse>(
-    `/api/folders/${id}/download/status/${jobId}`
+// GET /api/folders/:id/download-manifest
+export async function getFolderDownloadManifest(id: string): Promise<DownloadManifest> {
+  const { data } = await apiClient.get<DownloadManifest>(
+    `/api/folders/${id}/download-manifest`
   );
   return data;
 }

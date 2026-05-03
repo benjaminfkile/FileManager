@@ -3,23 +3,14 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DownloadsTray from './DownloadsTray';
 import * as DownloadsContextModule from '../contexts/DownloadsContext';
-import * as useFolderDownloadModule from '../hooks/useFolderDownload';
-import * as downloadHelpers from '../utils/downloadHelpers';
 import { DownloadJob } from '../contexts/DownloadsContext';
 
 jest.mock('../contexts/DownloadsContext', () => ({
   ...jest.requireActual('../contexts/DownloadsContext'),
   useDownloads: jest.fn(),
 }));
-jest.mock('../hooks/useFolderDownload', () => ({
-  useFolderDownload: jest.fn(),
-}));
-jest.mock('../utils/downloadHelpers', () => ({
-  triggerDownloadFromUrl: jest.fn(),
-}));
 
 const mockRemoveJob = jest.fn();
-const mockStart = jest.fn();
 
 function makeJob(overrides: Partial<DownloadJob>): DownloadJob {
   return {
@@ -27,9 +18,11 @@ function makeJob(overrides: Partial<DownloadJob>): DownloadJob {
     folderId: 'f1',
     folderName: 'Folder 1',
     status: 'processing',
+    loadedBytes: 0,
+    totalBytes: 0,
     createdAt: Date.now(),
-    prepareFn: jest.fn(),
-    statusFn: jest.fn(),
+    abort: jest.fn(),
+    retry: jest.fn(),
     ...overrides,
   };
 }
@@ -41,11 +34,6 @@ function setupMocks(jobs: DownloadJob[] = []) {
     updateJob: jest.fn(),
     removeJob: mockRemoveJob,
   });
-  (useFolderDownloadModule.useFolderDownload as jest.Mock).mockReturnValue({
-    start: mockStart,
-    jobs,
-  });
-  (downloadHelpers.triggerDownloadFromUrl as jest.Mock).mockResolvedValue(undefined);
 }
 
 beforeEach(() => {
@@ -71,66 +59,49 @@ describe('DownloadsTray', () => {
     expect(screen.getByText('No downloads')).toBeInTheDocument();
   });
 
-  it('renders in-flight job with folder name and status', async () => {
-    setupMocks([makeJob({ status: 'processing', folderName: 'Work Files' })]);
-    render(<DownloadsTray />);
-    await userEvent.click(screen.getByLabelText('downloads'));
-    expect(screen.getByText('Work Files')).toBeInTheDocument();
-    expect(screen.getByText('Downloading...')).toBeInTheDocument();
-  });
-
-  it('renders pending job with Preparing... status', async () => {
+  it('renders pending job with Preparing… status', async () => {
     setupMocks([makeJob({ status: 'pending', folderName: 'Archive' })]);
     render(<DownloadsTray />);
     await userEvent.click(screen.getByLabelText('downloads'));
     expect(screen.getByText('Archive')).toBeInTheDocument();
-    expect(screen.getByText('Preparing...')).toBeInTheDocument();
+    expect(screen.getByText(/Preparing/)).toBeInTheDocument();
   });
 
-  it('shows Retry button for failed jobs', async () => {
-    setupMocks([makeJob({ status: 'failed', error: 'Server error' })]);
+  it('shows bytes-of-total progress for an in-flight job', async () => {
+    setupMocks([
+      makeJob({
+        status: 'processing',
+        folderName: 'Work Files',
+        loadedBytes: 500_000,
+        totalBytes: 1_000_000,
+      }),
+    ]);
     render(<DownloadsTray />);
     await userEvent.click(screen.getByLabelText('downloads'));
-    expect(screen.getByText('Retry')).toBeInTheDocument();
+    expect(screen.getByText('Work Files')).toBeInTheDocument();
+    expect(screen.getByText(/of/)).toBeInTheDocument();
+    expect(screen.getByText(/50%/)).toBeInTheDocument();
+  });
+
+  it('shows Cancel for in-flight job and invokes job.abort()', async () => {
+    const abort = jest.fn();
+    setupMocks([makeJob({ status: 'processing', abort })]);
+    render(<DownloadsTray />);
+    await userEvent.click(screen.getByLabelText('downloads'));
+    await userEvent.click(screen.getByText('Cancel'));
+    expect(abort).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Retry for failed job and invokes job.retry()', async () => {
+    const retry = jest.fn();
+    setupMocks([
+      makeJob({ status: 'failed', error: 'Server error', retry }),
+    ]);
+    render(<DownloadsTray />);
+    await userEvent.click(screen.getByLabelText('downloads'));
     expect(screen.getByText(/Failed: Server error/)).toBeInTheDocument();
-  });
-
-  it('calls start with job fns and removes old job when Retry is clicked', async () => {
-    const prepareFn = jest.fn();
-    const statusFn = jest.fn();
-    const job = makeJob({ status: 'failed', error: 'Server error', prepareFn, statusFn });
-    setupMocks([job]);
-    render(<DownloadsTray />);
-    await userEvent.click(screen.getByLabelText('downloads'));
     await userEvent.click(screen.getByText('Retry'));
-
-    expect(mockRemoveJob).toHaveBeenCalledWith('j1');
-    expect(mockStart).toHaveBeenCalledWith('f1', 'Folder 1', { prepareFn, statusFn });
-  });
-
-  it('shows Open button for ready jobs', async () => {
-    setupMocks([makeJob({ status: 'ready', url: 'https://cdn.example.com/download.zip' })]);
-    render(<DownloadsTray />);
-    await userEvent.click(screen.getByLabelText('downloads'));
-    expect(screen.getByText('Open')).toBeInTheDocument();
-    expect(screen.getByText('Ready')).toBeInTheDocument();
-  });
-
-  it('triggers download when Open is clicked', async () => {
-    const job = makeJob({
-      status: 'ready',
-      url: 'https://cdn.example.com/download.zip',
-      folderName: 'Documents',
-    });
-    setupMocks([job]);
-    render(<DownloadsTray />);
-    await userEvent.click(screen.getByLabelText('downloads'));
-    await userEvent.click(screen.getByText('Open'));
-
-    expect(downloadHelpers.triggerDownloadFromUrl).toHaveBeenCalledWith(
-      'https://cdn.example.com/download.zip',
-      'Documents.zip'
-    );
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   it('shows badge count for in-flight jobs', () => {
@@ -141,7 +112,6 @@ describe('DownloadsTray', () => {
     ];
     setupMocks(jobs);
     render(<DownloadsTray />);
-    // Badge with count 2 should appear
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 

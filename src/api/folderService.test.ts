@@ -6,7 +6,7 @@ import {
   getFolder,
   renameFolder,
   deleteFolder,
-  downloadFolder,
+  getFolderDownloadManifest,
   restoreFolder,
   permanentDeleteFolder,
   shareFolder,
@@ -132,17 +132,24 @@ describe('deleteFolder', () => {
   });
 });
 
-describe('downloadFolder', () => {
-  it('GETs /api/folders/:id/download with responseType blob', async () => {
-    const fakeBlob = new Blob(['zip-content'], { type: 'application/zip' });
-    mock.onGet('/api/folders/f-1/download').reply(200, fakeBlob);
+describe('getFolderDownloadManifest', () => {
+  it('GETs /api/folders/:id/download-manifest and returns the manifest', async () => {
+    const manifest = {
+      folderName: 'My Folder',
+      totalBytes: 1500,
+      expiresAt: '2026-05-03T12:00:00Z',
+      files: [
+        { zipPath: 'My Folder/a.txt', url: 'https://s3.example/a', size: 500 },
+        { zipPath: 'My Folder/b.txt', url: 'https://s3.example/b', size: 1000 },
+      ],
+    };
+    mock.onGet('/api/folders/f-1/download-manifest').reply(200, manifest);
 
-    const result = await downloadFolder('f-1');
+    const result = await getFolderDownloadManifest('f-1');
 
-    expect(result).toEqual(fakeBlob);
+    expect(result).toEqual(manifest);
     expect(mock.history.get).toHaveLength(1);
-    expect(mock.history.get[0].url).toBe('/api/folders/f-1/download');
-    expect(mock.history.get[0].responseType).toBe('blob');
+    expect(mock.history.get[0].url).toBe('/api/folders/f-1/download-manifest');
   });
 });
 

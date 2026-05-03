@@ -18,6 +18,7 @@ jest.mock('./api/fileService');
 jest.mock('./api/sharedService');
 jest.mock('./api/chunkedUploadService');
 jest.mock('./utils/downloadHelpers');
+jest.mock('./utils/folderZipDownload');
 jest.mock('./lib/cognitoClient', () => ({
   getIdToken: jest.fn(),
   signOut: jest.fn(),
@@ -35,13 +36,13 @@ jest.mock('./api/setupInterceptors', () => ({
 import { getMe, registerUser } from './api/userService';
 import {
   getRootFolders,
-  prepareFolderDownload,
-  getFolderDownloadStatus,
+  getFolderDownloadManifest,
 } from './api/folderService';
 import { getRootFiles, downloadFile, getUploadedParts } from './api/fileService';
 import { getSharedWithMe } from './api/sharedService';
 import { completeUpload, uploadPart, initiateUpload, abortUpload } from './api/chunkedUploadService';
 import { triggerDownloadFromUrl } from './utils/downloadHelpers';
+import { streamZipToDisk } from './utils/folderZipDownload';
 import { getIdToken, signOut, signUp, confirmSignUp, signIn, forgotPassword, confirmPassword } from './lib/cognitoClient';
 
 const mockGetIdToken = getIdToken as jest.MockedFunction<typeof getIdToken>;
@@ -58,8 +59,8 @@ const mockGetRootFolders = getRootFolders as jest.MockedFunction<typeof getRootF
 const mockGetRootFiles = getRootFiles as jest.MockedFunction<typeof getRootFiles>;
 const mockGetSharedWithMe = getSharedWithMe as jest.MockedFunction<typeof getSharedWithMe>;
 const mockDownloadFile = downloadFile as jest.MockedFunction<typeof downloadFile>;
-const mockPrepareFolderDownload = prepareFolderDownload as jest.MockedFunction<typeof prepareFolderDownload>;
-const mockGetFolderDownloadStatus = getFolderDownloadStatus as jest.MockedFunction<typeof getFolderDownloadStatus>;
+const mockGetFolderDownloadManifest = getFolderDownloadManifest as jest.MockedFunction<typeof getFolderDownloadManifest>;
+const mockStreamZipToDisk = streamZipToDisk as jest.MockedFunction<typeof streamZipToDisk>;
 const mockTriggerDownloadFromUrl = triggerDownloadFromUrl as jest.MockedFunction<typeof triggerDownloadFromUrl>;
 const mockGetUploadedParts = getUploadedParts as jest.MockedFunction<typeof getUploadedParts>;
 const mockInitiateUpload = initiateUpload as jest.MockedFunction<typeof initiateUpload>;
@@ -289,19 +290,22 @@ describe('App integration tests', () => {
     });
   });
 
-  // ---- Scenario 7: Folder download flow with polling ----
-  test('folder download polls until ready, triggers download, and shows tray entry', async () => {
+  // ---- Scenario 7: Folder download via manifest + streaming zip ----
+  test('folder download fetches manifest, streams zip, and shows tray entry', async () => {
     mockGetIdToken.mockResolvedValue('fake-cognito-token');
     mockGetMe.mockResolvedValue(fakeUser);
     mockGetRootFolders.mockResolvedValue([fakeFolder]);
-    mockPrepareFolderDownload.mockResolvedValue({ jobId: 'job-1', status: 'pending' });
-    mockGetFolderDownloadStatus
-      .mockResolvedValueOnce({ status: 'processing' })
-      .mockResolvedValueOnce({
-        status: 'ready',
-        url: 'https://cdn.example.com/folder.zip',
-        expiresAt: '2026-01-01T01:00:00.000Z',
-      });
+    mockGetFolderDownloadManifest.mockResolvedValue({
+      folderName: 'My Folder',
+      totalBytes: 1500,
+      expiresAt: '2026-01-01T06:00:00.000Z',
+      files: [
+        { zipPath: 'My Folder/a.txt', url: 'https://s3.example/a', size: 500 },
+        { zipPath: 'My Folder/b.txt', url: 'https://s3.example/b', size: 1000 },
+      ],
+    });
+    // The streaming zip itself is unit-tested elsewhere; just resolve here.
+    mockStreamZipToDisk.mockResolvedValue(undefined);
 
     renderApp('/');
 
@@ -309,73 +313,41 @@ describe('App integration tests', () => {
       expect(screen.getByText('My Folder')).toBeInTheDocument();
     });
 
-    // Open the folder's actions menu under real timers so MUI's Menu transitions
-    // and findByText work normally.
     await userEvent.click(screen.getByLabelText('actions'));
     const downloadItem = await screen.findByText('Download as zip');
+    await userEvent.click(downloadItem);
 
-    // Switch to fake timers BEFORE the click that triggers the polling loop,
-    // otherwise the first setTimeout(POLL_INTERVAL) is created against real
-    // timers and `jest.advanceTimersByTime` cannot make it fire.
-    jest.useFakeTimers();
-
-    // fireEvent (not userEvent) is used here because user-event v13 may
-    // schedule its own timers that won't fire under fake timers.
-    fireEvent.click(downloadItem);
-
-    // Helper: advance past one poll tick and flush enough microtasks for the
-    // resolved setTimeout/statusFn promise chain to drive React state updates.
-    const tickPoll = async () => {
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-      });
-      // Flush a few microtask turns: setTimeout resolution → await statusFn →
-      // updateJob state setter → continuation back into the loop.
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-    };
-
-    // Flush the synchronous portion of `start()` and the prepareFn microtask.
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(mockGetFolderDownloadManifest).toHaveBeenCalledWith('folder-1');
     });
-    expect(mockPrepareFolderDownload).toHaveBeenCalledWith('folder-1');
 
-    await tickPoll(); // first poll → 'processing'
-    await tickPoll(); // second poll → 'ready' + triggerDownloadFromUrl
+    await waitFor(() => {
+      expect(mockStreamZipToDisk).toHaveBeenCalledTimes(1);
+    });
 
-    expect(mockGetFolderDownloadStatus).toHaveBeenCalledTimes(2);
-    expect(mockTriggerDownloadFromUrl).toHaveBeenCalledWith(
-      'https://cdn.example.com/folder.zip',
-      'My Folder.zip',
-    );
-
-    jest.useRealTimers();
+    const args = mockStreamZipToDisk.mock.calls[0]?.[0];
+    expect(args?.folderName).toBe('My Folder');
+    expect(args?.files).toHaveLength(2);
 
     // Tray entry should reflect the completed job
     await userEvent.click(screen.getByLabelText('downloads'));
     await waitFor(() => {
-      expect(screen.getByText('Ready')).toBeInTheDocument();
+      expect(screen.getByText(/Saved/)).toBeInTheDocument();
     });
     // The folder name appears both in the list view AND in the tray entry.
     expect(screen.getAllByText('My Folder').length).toBeGreaterThanOrEqual(2);
   });
 
-  // ---- Scenario 8: Folder download cache-hit (no polling) ----
-  test('folder download cache-hit: prepare returns ready, no polling', async () => {
+  // ---- Scenario 8: Empty folder shows a friendly error ----
+  test('folder download: empty folder surfaces a "Folder is empty" message', async () => {
     mockGetIdToken.mockResolvedValue('fake-cognito-token');
     mockGetMe.mockResolvedValue(fakeUser);
     mockGetRootFolders.mockResolvedValue([fakeFolder]);
-    mockPrepareFolderDownload.mockResolvedValue({
-      jobId: 'job-cached',
-      status: 'ready',
-      url: 'https://cdn.example.com/cached-folder.zip',
-      expiresAt: '2026-01-01T01:00:00.000Z',
+    mockGetFolderDownloadManifest.mockResolvedValue({
+      folderName: 'My Folder',
+      totalBytes: 0,
+      expiresAt: '2026-01-01T06:00:00.000Z',
+      files: [],
     });
 
     renderApp('/');
@@ -389,18 +361,10 @@ describe('App integration tests', () => {
     await userEvent.click(downloadItem);
 
     await waitFor(() => {
-      expect(mockPrepareFolderDownload).toHaveBeenCalledWith('folder-1');
+      expect(mockGetFolderDownloadManifest).toHaveBeenCalledWith('folder-1');
     });
 
-    await waitFor(() => {
-      expect(mockTriggerDownloadFromUrl).toHaveBeenCalledWith(
-        'https://cdn.example.com/cached-folder.zip',
-        'My Folder.zip',
-      );
-    });
-
-    // Polling endpoint must NOT have been called for the cache-hit path
-    expect(mockGetFolderDownloadStatus).not.toHaveBeenCalled();
+    expect(mockStreamZipToDisk).not.toHaveBeenCalled();
   });
 
   // ---- Scenario 9: Upload resume from a seeded localStorage session ----

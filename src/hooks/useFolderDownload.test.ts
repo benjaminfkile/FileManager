@@ -2,23 +2,20 @@ import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import { useFolderDownload } from './useFolderDownload';
 import * as folderService from '../api/folderService';
-import * as downloadHelpers from '../utils/downloadHelpers';
+import * as folderZipDownload from '../utils/folderZipDownload';
 import { DownloadsProvider } from '../contexts/DownloadsContext';
 import { NotificationProvider } from '../contexts/NotificationContext';
 
 jest.mock('../lib/cognitoClient', () => ({ __esModule: true, default: {}, userPool: {} }));
 jest.mock('../api/apiClient', () => ({ default: {} }));
 jest.mock('../api/folderService');
-jest.mock('../utils/downloadHelpers');
+jest.mock('../utils/folderZipDownload');
 
-const mockedPrepareFolderDownload = folderService.prepareFolderDownload as jest.MockedFunction<
-  typeof folderService.prepareFolderDownload
+const mockedGetFolderDownloadManifest = folderService.getFolderDownloadManifest as jest.MockedFunction<
+  typeof folderService.getFolderDownloadManifest
 >;
-const mockedGetFolderDownloadStatus = folderService.getFolderDownloadStatus as jest.MockedFunction<
-  typeof folderService.getFolderDownloadStatus
->;
-const mockedTriggerDownloadFromUrl = downloadHelpers.triggerDownloadFromUrl as jest.MockedFunction<
-  typeof downloadHelpers.triggerDownloadFromUrl
+const mockedStreamZipToDisk = folderZipDownload.streamZipToDisk as jest.MockedFunction<
+  typeof folderZipDownload.streamZipToDisk
 >;
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -31,142 +28,137 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 beforeEach(() => {
   jest.resetAllMocks();
-  mockedTriggerDownloadFromUrl.mockResolvedValue(undefined);
+  mockedStreamZipToDisk.mockResolvedValue(undefined);
 });
 
 describe('useFolderDownload', () => {
-  it('downloads immediately when prepare returns ready', async () => {
-    const prepareFn = jest.fn().mockResolvedValue({
-      jobId: 'job1',
-      status: 'ready',
-      url: 'https://cdn.example.com/folder.zip',
-    });
+  const sampleManifest = {
+    folderName: 'My Folder',
+    totalBytes: 1500,
+    expiresAt: '2026-05-03T12:00:00Z',
+    files: [
+      { zipPath: 'My Folder/a.txt', url: 'https://s3.example/a', size: 500 },
+      { zipPath: 'My Folder/b.txt', url: 'https://s3.example/b', size: 1000 },
+    ],
+  };
+
+  it('streams the zip to disk and marks the job ready', async () => {
+    mockedGetFolderDownloadManifest.mockResolvedValue(sampleManifest);
 
     const { result } = renderHook(() => useFolderDownload(), { wrapper });
 
     await act(async () => {
-      await result.current.start('folder1', 'My Folder', { prepareFn, _pollInterval: 0 });
+      await result.current.start('folder1', 'My Folder', { _progressFlushMs: 0 });
     });
 
-    expect(result.current.jobs[0]?.status).toBe('ready');
-    expect(result.current.jobs[0]?.url).toBe('https://cdn.example.com/folder.zip');
-    expect(mockedTriggerDownloadFromUrl).toHaveBeenCalledWith(
-      'https://cdn.example.com/folder.zip',
-      'My Folder.zip'
-    );
+    expect(mockedGetFolderDownloadManifest).toHaveBeenCalledWith('folder1');
+    expect(mockedStreamZipToDisk).toHaveBeenCalledTimes(1);
+    expect(mockedStreamZipToDisk.mock.calls[0]?.[0].files).toEqual(sampleManifest.files);
+    expect(mockedStreamZipToDisk.mock.calls[0]?.[0].folderName).toBe('My Folder');
+
+    const job = result.current.jobs[0];
+    expect(job?.status).toBe('ready');
+    expect(job?.totalBytes).toBe(1500);
+    expect(job?.completedAt).toBeDefined();
   });
 
-  it('polls until status becomes ready', async () => {
-    const prepareFn = jest.fn().mockResolvedValue({ jobId: 'job1', status: 'pending' });
-    const statusFn = jest
-      .fn()
-      .mockResolvedValueOnce({ status: 'processing' })
-      .mockResolvedValueOnce({ status: 'ready', url: 'https://cdn.example.com/folder.zip' });
-
-    const { result } = renderHook(() => useFolderDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.start('folder1', 'My Folder', {
-        prepareFn,
-        statusFn,
-        _pollInterval: 0,
-      });
-    });
-
-    expect(result.current.jobs[0]?.status).toBe('ready');
-    expect(statusFn).toHaveBeenCalledTimes(2);
-    expect(mockedTriggerDownloadFromUrl).toHaveBeenCalledWith(
-      'https://cdn.example.com/folder.zip',
-      'My Folder.zip'
-    );
-  });
-
-  it('marks job as failed when status returns failed', async () => {
-    const prepareFn = jest.fn().mockResolvedValue({ jobId: 'job1', status: 'pending' });
-    const statusFn = jest.fn().mockResolvedValue({ status: 'failed', error: 'Zip error' });
-
-    const { result } = renderHook(() => useFolderDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.start('folder1', 'My Folder', {
-        prepareFn,
-        statusFn,
-        _pollInterval: 0,
-      });
-    });
-
-    expect(result.current.jobs[0]?.status).toBe('failed');
-    expect(result.current.jobs[0]?.error).toBe('Zip error');
-    expect(mockedTriggerDownloadFromUrl).not.toHaveBeenCalled();
-  });
-
-  it('marks job as failed when prepare throws', async () => {
-    const prepareFn = jest.fn().mockRejectedValue(new Error('Network error'));
-
-    const { result } = renderHook(() => useFolderDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.start('folder1', 'My Folder', {
-        prepareFn,
-        _pollInterval: 0,
-      });
-    });
-
-    expect(result.current.jobs[0]?.status).toBe('failed');
-    expect(result.current.jobs[0]?.error).toBe('Failed to download folder');
-    expect(mockedTriggerDownloadFromUrl).not.toHaveBeenCalled();
-  });
-
-  it('uses default folderService functions when no custom options given', async () => {
-    mockedPrepareFolderDownload.mockResolvedValue({
-      jobId: 'job1',
-      status: 'ready',
-      url: 'https://cdn.example.com/folder.zip',
+  it('reports progress as the stream emits bytes', async () => {
+    mockedGetFolderDownloadManifest.mockResolvedValue(sampleManifest);
+    mockedStreamZipToDisk.mockImplementation(async ({ onProgress }) => {
+      onProgress?.(500);
+      onProgress?.(700);
+      onProgress?.(300);
     });
 
     const { result } = renderHook(() => useFolderDownload(), { wrapper });
 
     await act(async () => {
-      await result.current.start('folder1', 'My Folder', { _pollInterval: 0 });
-    });
-
-    expect(mockedPrepareFolderDownload).toHaveBeenCalledWith('folder1');
-    expect(result.current.jobs[0]?.status).toBe('ready');
-  });
-
-  it('uses default getFolderDownloadStatus during polling', async () => {
-    mockedPrepareFolderDownload.mockResolvedValue({ jobId: 'job1', status: 'pending' });
-    mockedGetFolderDownloadStatus.mockResolvedValue({
-      status: 'ready',
-      url: 'https://cdn.example.com/folder.zip',
-    });
-
-    const { result } = renderHook(() => useFolderDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.start('folder1', 'My Folder', { _pollInterval: 0 });
-    });
-
-    expect(mockedGetFolderDownloadStatus).toHaveBeenCalledWith('folder1', 'job1');
-    expect(result.current.jobs[0]?.status).toBe('ready');
-  });
-
-  it('stores job in context with correct initial state', async () => {
-    const prepareFn = jest.fn().mockResolvedValue({
-      jobId: 'job1',
-      status: 'ready',
-      url: 'https://cdn.example.com/folder.zip',
-    });
-
-    const { result } = renderHook(() => useFolderDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.start('folder-x', 'Archive', { prepareFn, _pollInterval: 0 });
+      await result.current.start('folder1', 'My Folder', { _progressFlushMs: 0 });
     });
 
     const job = result.current.jobs[0];
-    expect(job?.folderId).toBe('folder-x');
-    expect(job?.folderName).toBe('Archive');
-    expect(job?.completedAt).toBeDefined();
+    expect(job?.status).toBe('ready');
+    expect(job?.loadedBytes).toBe(1500);
+  });
+
+  it('marks job failed and notifies on manifest error', async () => {
+    mockedGetFolderDownloadManifest.mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useFolderDownload(), { wrapper });
+
+    await act(async () => {
+      await result.current.start('folder1', 'My Folder', { _progressFlushMs: 0 });
+    });
+
+    const job = result.current.jobs[0];
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toBe('Network error');
+    expect(mockedStreamZipToDisk).not.toHaveBeenCalled();
+  });
+
+  it('marks job failed when streamZipToDisk throws', async () => {
+    mockedGetFolderDownloadManifest.mockResolvedValue(sampleManifest);
+    mockedStreamZipToDisk.mockRejectedValue(new Error('S3 fetch 403'));
+
+    const { result } = renderHook(() => useFolderDownload(), { wrapper });
+
+    await act(async () => {
+      await result.current.start('folder1', 'My Folder', { _progressFlushMs: 0 });
+    });
+
+    const job = result.current.jobs[0];
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toBe('S3 fetch 403');
+  });
+
+  it('marks job failed with "Folder is empty" when manifest has no files', async () => {
+    mockedGetFolderDownloadManifest.mockResolvedValue({
+      folderName: 'Empty',
+      totalBytes: 0,
+      expiresAt: '2026-05-03T12:00:00Z',
+      files: [],
+    });
+
+    const { result } = renderHook(() => useFolderDownload(), { wrapper });
+
+    await act(async () => {
+      await result.current.start('folder1', 'Empty', { _progressFlushMs: 0 });
+    });
+
+    const job = result.current.jobs[0];
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toBe('Folder is empty');
+    expect(mockedStreamZipToDisk).not.toHaveBeenCalled();
+  });
+
+  it('uses a custom manifestFn when provided (share-link case)', async () => {
+    const customManifestFn = jest.fn().mockResolvedValue(sampleManifest);
+
+    const { result } = renderHook(() => useFolderDownload(), { wrapper });
+
+    await act(async () => {
+      await result.current.start('folder1', 'My Folder', {
+        manifestFn: customManifestFn,
+        _progressFlushMs: 0,
+      });
+    });
+
+    expect(customManifestFn).toHaveBeenCalledTimes(1);
+    expect(mockedGetFolderDownloadManifest).not.toHaveBeenCalled();
+    expect(result.current.jobs[0]?.status).toBe('ready');
+  });
+
+  it('exposes abort + retry on the job', async () => {
+    mockedGetFolderDownloadManifest.mockResolvedValue(sampleManifest);
+
+    const { result } = renderHook(() => useFolderDownload(), { wrapper });
+
+    await act(async () => {
+      await result.current.start('folder1', 'My Folder', { _progressFlushMs: 0 });
+    });
+
+    const job = result.current.jobs[0];
+    expect(typeof job?.abort).toBe('function');
+    expect(typeof job?.retry).toBe('function');
   });
 });
