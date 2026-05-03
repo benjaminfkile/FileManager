@@ -3,7 +3,8 @@ import { IFile } from '../types';
 import { chunkFile } from '../utils/chunkFile';
 import {
   initiateUpload,
-  uploadPart,
+  getPartUrls,
+  uploadPartToUrl,
   completeUpload,
   abortUpload,
   CompletedPart,
@@ -174,6 +175,17 @@ export function useChunkedUpload(): UseChunkedUploadResult {
           persist();
         }
 
+        // Pre-fetch presigned PUT URLs for every remaining part in one call.
+        // Bytes go browser → S3 directly via these URLs; the API never sees them.
+        const urlMap = new Map<number, string>();
+        if (remaining.length > 0) {
+          const urls = await getPartUrls(
+            fileId as string,
+            remaining.map((c) => c.partNumber),
+          );
+          for (const u of urls) urlMap.set(u.partNumber, u.url);
+        }
+
         const BATCH_SIZE = 3;
         for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
           if (abortedRef.current) {
@@ -186,8 +198,14 @@ export function useChunkedUpload(): UseChunkedUploadResult {
           const batch = remaining.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
             batch.map(async (chunk) => {
-              const result = await uploadPart({
-                fileId: fileId as string,
+              const url = urlMap.get(chunk.partNumber);
+              if (!url) {
+                throw new Error(
+                  `Missing presigned URL for part ${chunk.partNumber}`,
+                );
+              }
+              const result = await uploadPartToUrl({
+                url,
                 partNumber: chunk.partNumber,
                 chunk: chunk.blob,
               });

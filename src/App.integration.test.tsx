@@ -40,7 +40,7 @@ import {
 } from './api/folderService';
 import { getRootFiles, downloadFile, getUploadedParts } from './api/fileService';
 import { getSharedWithMe } from './api/sharedService';
-import { completeUpload, uploadPart, initiateUpload, abortUpload } from './api/chunkedUploadService';
+import { completeUpload, uploadPartToUrl, initiateUpload, abortUpload } from './api/chunkedUploadService';
 import { triggerDownloadFromUrl } from './utils/downloadHelpers';
 import { streamZipToDisk } from './utils/folderZipDownload';
 import { getIdToken, signOut, signUp, confirmSignUp, signIn, forgotPassword, confirmPassword } from './lib/cognitoClient';
@@ -64,7 +64,7 @@ const mockStreamZipToDisk = streamZipToDisk as jest.MockedFunction<typeof stream
 const mockTriggerDownloadFromUrl = triggerDownloadFromUrl as jest.MockedFunction<typeof triggerDownloadFromUrl>;
 const mockGetUploadedParts = getUploadedParts as jest.MockedFunction<typeof getUploadedParts>;
 const mockInitiateUpload = initiateUpload as jest.MockedFunction<typeof initiateUpload>;
-const mockUploadPart = uploadPart as jest.MockedFunction<typeof uploadPart>;
+const mockUploadPart = uploadPartToUrl as jest.MockedFunction<typeof uploadPartToUrl>;
 const mockCompleteUpload = completeUpload as jest.MockedFunction<typeof completeUpload>;
 const mockAbortUpload = abortUpload as jest.MockedFunction<typeof abortUpload>;
 

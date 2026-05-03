@@ -5,7 +5,8 @@ import FolderUpload, { FolderUploadProps } from './FolderUpload';
 
 jest.mock('../api/chunkedUploadService', () => ({
   initiateUpload: jest.fn(),
-  uploadPart: jest.fn(),
+  getPartUrls: jest.fn(),
+  uploadPartToUrl: jest.fn(),
   completeUpload: jest.fn(),
   abortUpload: jest.fn(),
 }));
@@ -19,9 +20,16 @@ jest.mock('../api/folderService', () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { initiateUpload, uploadPart, completeUpload, abortUpload } = require('../api/chunkedUploadService') as {
+const {
+  initiateUpload,
+  getPartUrls,
+  uploadPartToUrl,
+  completeUpload,
+  abortUpload,
+} = require('../api/chunkedUploadService') as {
   initiateUpload: jest.Mock;
-  uploadPart: jest.Mock;
+  getPartUrls: jest.Mock;
+  uploadPartToUrl: jest.Mock;
   completeUpload: jest.Mock;
   abortUpload: jest.Mock;
 };
@@ -53,7 +61,12 @@ function setupChunkedMocks(fileId = 'file-1') {
     { blob: new Blob(['chunk1']), partNumber: 1, start: 0, end: 512 },
     { blob: new Blob(['chunk2']), partNumber: 2, start: 512, end: 1024 },
   ]);
-  uploadPart.mockImplementation(({ partNumber }: { partNumber: number }) =>
+  getPartUrls.mockImplementation((_fileId: string, partNumbers: number[]) =>
+    Promise.resolve(
+      partNumbers.map((p) => ({ partNumber: p, url: `https://s3.example/put?p=${p}` })),
+    ),
+  );
+  uploadPartToUrl.mockImplementation(({ partNumber }: { partNumber: number }) =>
     Promise.resolve({ partNumber, etag: `etag-${partNumber}` }),
   );
   completeUpload.mockResolvedValue({
@@ -121,8 +134,8 @@ describe('FolderUpload', () => {
       // chunkFile called once per file
       expect(chunkFile).toHaveBeenCalledTimes(2);
 
-      // uploadPart called for each chunk of each file (2 chunks x 2 files = 4)
-      expect(uploadPart).toHaveBeenCalledTimes(4);
+      // uploadPartToUrl called for each chunk of each file (2 chunks x 2 files = 4)
+      expect(uploadPartToUrl).toHaveBeenCalledTimes(4);
 
       // completeUpload called once per file
       expect(completeUpload).toHaveBeenCalledTimes(2);
@@ -158,7 +171,7 @@ describe('FolderUpload', () => {
         .mockResolvedValueOnce({ uploadId: 'upload-2', fileId: 'file-bad', key: 'key-2' });
 
       let callCount = 0;
-      uploadPart.mockImplementation(({ partNumber }: { partNumber: number }) => {
+      uploadPartToUrl.mockImplementation(({ partNumber }: { partNumber: number }) => {
         callCount++;
         // First 2 calls are for file-good (succeed), 3rd call is first chunk of file-bad (fail)
         if (callCount <= 2) {

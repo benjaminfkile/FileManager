@@ -2,7 +2,8 @@ import MockAdapter from 'axios-mock-adapter';
 import apiClient from './apiClient';
 import {
   initiateUpload,
-  uploadPart,
+  getPartUrls,
+  uploadPartToUrl,
   completeUpload,
   abortUpload,
 } from './chunkedUploadService';
@@ -54,33 +55,87 @@ describe('initiateUpload', () => {
   });
 });
 
-describe('uploadPart', () => {
-  it('PUTs to /api/files/uploads/{fileId}/parts/{partNumber} with Content-Type: application/octet-stream', async () => {
-    const response = { partNumber: 1, etag: '"abc123"' };
-    mock.onPut('/api/files/uploads/file-1/parts/1').reply(200, response);
+describe('getPartUrls', () => {
+  it('POSTs to /api/files/uploads/{fileId}/part-urls and returns urls[]', async () => {
+    const response = {
+      urls: [
+        { partNumber: 1, url: 'https://s3.example/put?part=1' },
+        { partNumber: 2, url: 'https://s3.example/put?part=2' },
+      ],
+      expiresAt: '2026-05-04T01:00:00Z',
+    };
+    mock.onPost('/api/files/uploads/file-1/part-urls').reply(200, response);
 
-    const buf = Buffer.from('hello world');
-    const chunk = new Blob([buf], { type: 'application/octet-stream' });
-    (chunk as any).arrayBuffer = () => Promise.resolve(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-    const result = await uploadPart({ fileId: 'file-1', partNumber: 1, chunk });
+    const result = await getPartUrls('file-1', [1, 2]);
 
-    expect(result).toEqual(response);
-    expect(mock.history.put).toHaveLength(1);
-    expect(mock.history.put[0].url).toBe('/api/files/uploads/file-1/parts/1');
-    expect(mock.history.put[0].headers?.['Content-Type']).toBe('application/octet-stream');
+    expect(result).toEqual(response.urls);
+    expect(mock.history.post).toHaveLength(1);
+    expect(mock.history.post[0].url).toBe('/api/files/uploads/file-1/part-urls');
+    expect(JSON.parse(mock.history.post[0].data)).toEqual({ partNumbers: [1, 2] });
+  });
+});
+
+describe('uploadPartToUrl', () => {
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
   });
 
-  it('returns { partNumber, etag }', async () => {
-    const response = { partNumber: 3, etag: '"def456"' };
-    mock.onPut('/api/files/uploads/file-1/parts/3').reply(200, response);
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
 
-    const buf = Buffer.from('data');
-    const chunk = new Blob([buf], { type: 'application/octet-stream' });
-    (chunk as any).arrayBuffer = () => Promise.resolve(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-    const result = await uploadPart({ fileId: 'file-1', partNumber: 3, chunk });
+  it('PUTs the chunk to the presigned URL and returns ETag from response headers', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: new Map([['ETag', '"abc123"']]),
+    } as unknown as Response);
+    // jsdom Headers polyfill works differently — provide a get() shim that
+    // matches the contract `uploadPartToUrl` uses.
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: (k: string) => (k.toLowerCase() === 'etag' ? '"abc123"' : null) },
+    });
 
-    expect(result).toHaveProperty('partNumber', 3);
-    expect(result).toHaveProperty('etag', '"def456"');
+    const chunk = new Blob([Buffer.from('hello')], { type: 'application/octet-stream' });
+    const result = await uploadPartToUrl({
+      url: 'https://s3.example/put?part=1',
+      partNumber: 1,
+      chunk,
+    });
+
+    expect(result).toEqual({ partNumber: 1, etag: '"abc123"' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://s3.example/put?part=1',
+      expect.objectContaining({ method: 'PUT', body: chunk }),
+    );
+  });
+
+  it('throws when the response is not ok', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { get: () => null },
+    } as unknown as Response);
+
+    const chunk = new Blob([Buffer.from('x')]);
+    await expect(
+      uploadPartToUrl({ url: 'https://s3.example/put', partNumber: 1, chunk }),
+    ).rejects.toThrow(/403/);
+  });
+
+  it('throws when the response is missing the ETag header', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => null },
+    } as unknown as Response);
+
+    const chunk = new Blob([Buffer.from('x')]);
+    await expect(
+      uploadPartToUrl({ url: 'https://s3.example/put', partNumber: 1, chunk }),
+    ).rejects.toThrow(/ETag/);
   });
 });
 

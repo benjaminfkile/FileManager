@@ -17,6 +17,16 @@ export interface CompletedPart {
   etag: string;
 }
 
+export interface PartUrl {
+  partNumber: number;
+  url: string;
+}
+
+export interface PartUrlsResponse {
+  urls: PartUrl[];
+  expiresAt: string;
+}
+
 /** POST /api/files/uploads/initiate — Starts a multipart upload session. */
 export async function initiateUpload(payload: {
   filename: string;
@@ -31,27 +41,47 @@ export async function initiateUpload(payload: {
   return data;
 }
 
-/** PUT /api/files/uploads/:fileId/parts/:partNumber — Uploads one chunk. */
-export async function uploadPart(payload: {
-  fileId: string;
+/**
+ * POST /api/files/uploads/:fileId/part-urls — Returns one presigned S3 PUT
+ * URL per requested part number. The browser uses these URLs to upload
+ * chunks directly to S3, bypassing the API server entirely.
+ */
+export async function getPartUrls(
+  fileId: string,
+  partNumbers: number[],
+): Promise<PartUrl[]> {
+  const { data } = await apiClient.post<PartUrlsResponse>(
+    `/api/files/uploads/${fileId}/part-urls`,
+    { partNumbers },
+  );
+  return data.urls;
+}
+
+/**
+ * Uploads one chunk directly to S3 via a presigned PUT URL. The API server
+ * never sees the bytes. Returns `{ partNumber, etag }` where the ETag comes
+ * from the S3 response header.
+ */
+export async function uploadPartToUrl(payload: {
+  url: string;
   partNumber: number;
   chunk: Blob;
-  onProgress?: (loaded: number, total: number) => void;
 }): Promise<UploadPartResponse> {
-  const { fileId, partNumber, chunk, onProgress } = payload;
-  const buffer = await chunk.arrayBuffer();
-
-  const { data } = await apiClient.put<UploadPartResponse>(
-    `/api/files/uploads/${fileId}/parts/${partNumber}`,
-    buffer,
-    {
-      headers: { 'Content-Type': 'application/octet-stream' },
-      onUploadProgress: onProgress
-        ? (event) => onProgress(event.loaded, event.total ?? chunk.size)
-        : undefined,
-    },
-  );
-  return data;
+  const { url, partNumber, chunk } = payload;
+  const response = await fetch(url, {
+    method: 'PUT',
+    body: chunk,
+  });
+  if (!response.ok) {
+    throw new Error(
+      `S3 part upload failed: ${response.status} ${response.statusText}`,
+    );
+  }
+  const etag = response.headers.get('ETag');
+  if (!etag) {
+    throw new Error('S3 part upload response missing ETag header');
+  }
+  return { partNumber, etag };
 }
 
 /** POST /api/files/uploads/:fileId/complete — Finalises the multipart upload. */

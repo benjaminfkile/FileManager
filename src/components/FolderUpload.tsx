@@ -3,7 +3,8 @@ import { Box, Typography, LinearProgress, Alert, Link } from '@mui/material';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import {
   initiateUpload,
-  uploadPart,
+  getPartUrls,
+  uploadPartToUrl,
   completeUpload,
   abortUpload,
 } from '../api/chunkedUploadService';
@@ -162,10 +163,18 @@ async function orchestrateUpload(
     });
     try {
       const chunks = chunkFile(entry.file);
+      // Bytes flow browser → S3 directly via these presigned PUT URLs.
+      const urlEntries = chunks.length
+        ? await getPartUrls(fileId, chunks.map((c) => c.partNumber))
+        : [];
+      const urlMap = new Map(urlEntries.map((u) => [u.partNumber, u.url]));
+
       const completedParts = [];
       for (const chunk of chunks) {
-        const part = await uploadPart({
-          fileId,
+        const url = urlMap.get(chunk.partNumber);
+        if (!url) throw new Error(`Missing presigned URL for part ${chunk.partNumber}`);
+        const part = await uploadPartToUrl({
+          url,
           partNumber: chunk.partNumber,
           chunk: chunk.blob,
         });

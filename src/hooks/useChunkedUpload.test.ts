@@ -55,6 +55,12 @@ function makeChunks(count: number): chunkFileModule.FileChunk[] {
 beforeEach(() => {
   jest.resetAllMocks();
   localStorage.clear();
+  // Default getPartUrls behaviour: hand back a synthetic presigned URL per
+  // requested partNumber. Tests exercising the upload loop assume this.
+  mockedService.getPartUrls.mockImplementation(
+    async (_fileId: string, partNumbers: number[]) =>
+      partNumbers.map((p) => ({ partNumber: p, url: `https://s3.example/put?p=${p}` })),
+  );
 });
 
 describe('useChunkedUpload', () => {
@@ -66,7 +72,7 @@ describe('useChunkedUpload', () => {
       fileId: 'file-1',
       key: 'key-1',
     });
-    mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+    mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
       partNumber,
       etag: `etag-${partNumber}`,
     }));
@@ -90,7 +96,7 @@ describe('useChunkedUpload', () => {
       size: 30,
       folderId: null,
     });
-    expect(mockedService.uploadPart).toHaveBeenCalledTimes(4);
+    expect(mockedService.uploadPartToUrl).toHaveBeenCalledTimes(4);
     expect(mockedService.completeUpload).toHaveBeenCalledWith('file-1', [
       { partNumber: 1, etag: 'etag-1' },
       { partNumber: 2, etag: 'etag-2' },
@@ -111,7 +117,7 @@ describe('useChunkedUpload', () => {
     });
 
     let uploadPartCallCount = 0;
-    mockedService.uploadPart.mockImplementation(async ({ partNumber }) => {
+    mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => {
       uploadPartCallCount++;
       return { partNumber, etag: `etag-${partNumber}` };
     });
@@ -119,8 +125,8 @@ describe('useChunkedUpload', () => {
 
     const { result } = renderHook(() => useChunkedUpload());
 
-    const originalUploadPart = mockedService.uploadPart.getMockImplementation()!;
-    mockedService.uploadPart.mockImplementation(async (payload) => {
+    const originalUploadPart = mockedService.uploadPartToUrl.getMockImplementation()!;
+    mockedService.uploadPartToUrl.mockImplementation(async (payload) => {
       const res = await originalUploadPart(payload);
       if (uploadPartCallCount >= 3) {
         result.current.abort();
@@ -147,7 +153,7 @@ describe('useChunkedUpload', () => {
       fileId: 'file-1',
       key: 'key-1',
     });
-    mockedService.uploadPart.mockRejectedValue(new Error('Network error'));
+    mockedService.uploadPartToUrl.mockRejectedValue(new Error('Network error'));
     mockedService.abortUpload.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useChunkedUpload());
@@ -174,7 +180,7 @@ describe('useChunkedUpload', () => {
     const progressValues: number[] = [];
     let resolvers: Array<(val: chunkedUploadService.UploadPartResponse) => void> = [];
 
-    mockedService.uploadPart.mockImplementation(({ partNumber }) => {
+    mockedService.uploadPartToUrl.mockImplementation(({ partNumber }) => {
       return new Promise((resolve) => {
         resolvers.push(() => resolve({ partNumber, etag: `etag-${partNumber}` }));
       });
@@ -239,7 +245,7 @@ describe('useChunkedUpload', () => {
       fileId: 'file-1',
       key: 'key-1',
     });
-    mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+    mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
       partNumber,
       etag: `etag-${partNumber}`,
     }));
@@ -315,7 +321,7 @@ describe('useChunkedUpload', () => {
         fileId: 'file-1',
         parts: [{ partNumber: 1 }, { partNumber: 2 }],
       });
-      mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+      mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
         partNumber,
         etag: `new-etag-${partNumber}`,
       }));
@@ -336,7 +342,7 @@ describe('useChunkedUpload', () => {
 
       expect(resumed).toEqual(mockIFile);
       // Only parts 3 and 4 should have been uploaded
-      const uploadedPartNumbers = mockedService.uploadPart.mock.calls.map(
+      const uploadedPartNumbers = mockedService.uploadPartToUrl.mock.calls.map(
         (call) => call[0].partNumber,
       );
       expect(uploadedPartNumbers).toEqual([3, 4]);
@@ -363,7 +369,7 @@ describe('useChunkedUpload', () => {
         fileId: 'file-1',
         parts: [{ partNumber: 1 }, { partNumber: 2 }, { partNumber: 3 }],
       });
-      mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+      mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
         partNumber,
         etag: `new-etag-${partNumber}`,
       }));
@@ -383,7 +389,7 @@ describe('useChunkedUpload', () => {
         await result.current.resume();
       });
 
-      const uploadedPartNumbers = mockedService.uploadPart.mock.calls.map(
+      const uploadedPartNumbers = mockedService.uploadPartToUrl.mock.calls.map(
         (call) => call[0].partNumber,
       );
       expect(uploadedPartNumbers).toEqual([4, 5]);
@@ -402,7 +408,7 @@ describe('useChunkedUpload', () => {
         fileId: 'file-2',
         key: 'key-2',
       });
-      mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+      mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
         partNumber,
         etag: `etag-${partNumber}`,
       }));
@@ -429,7 +435,7 @@ describe('useChunkedUpload', () => {
       });
       expect(secondResult).toEqual(mockIFile);
       expect(mockedService.initiateUpload).toHaveBeenCalledTimes(1);
-      expect(mockedService.uploadPart).toHaveBeenCalledTimes(4);
+      expect(mockedService.uploadPartToUrl).toHaveBeenCalledTimes(4);
     });
 
     it('persists across simulated remount — second hook instance recovers session', async () => {
@@ -479,7 +485,7 @@ describe('useChunkedUpload', () => {
         fileId: 'file-new',
         key: 'key-new',
       });
-      mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+      mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
         partNumber,
         etag: `etag-${partNumber}`,
       }));
@@ -505,7 +511,7 @@ describe('useChunkedUpload', () => {
         fileId: 'file-new',
         key: 'key-new',
       });
-      mockedService.uploadPart.mockImplementation(async ({ partNumber }) => ({
+      mockedService.uploadPartToUrl.mockImplementation(async ({ partNumber }) => ({
         partNumber,
         etag: `etag-${partNumber}`,
       }));
