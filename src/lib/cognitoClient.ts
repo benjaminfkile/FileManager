@@ -53,6 +53,32 @@ export function signIn(email: string, password: string): Promise<string> {
   });
 }
 
+/** Initiate forgot-password flow — sends a verification code to the user's email. */
+export function forgotPassword(email: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: userPool });
+    user.forgotPassword({
+      onSuccess: () => resolve(),
+      onFailure: reject,
+    });
+  });
+}
+
+/** Complete the forgot-password flow by submitting the code and new password. */
+export function confirmPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: userPool });
+    user.confirmPassword(code, newPassword, {
+      onSuccess: () => resolve(),
+      onFailure: reject,
+    });
+  });
+}
+
 /** Sign out the current user locally (clears the session from localStorage). */
 export function signOut(): void {
   const user = userPool.getCurrentUser();
