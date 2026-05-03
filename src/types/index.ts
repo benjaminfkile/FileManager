@@ -3,6 +3,7 @@ export interface IUser {
   first_name: string;
   last_name: string;
   username: string;
+  expires_at?: string | null;
   created_at: string;
   updated_at?: string;
 }

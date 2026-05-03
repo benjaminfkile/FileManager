@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import UserProfileMenu from './UserProfileMenu';
 import DownloadsTray from './DownloadsTray';
+import SessionExpiryBanner from './SessionExpiryBanner';
 import {
   AppBar,
   Avatar,
@@ -147,6 +148,9 @@ export default function AppShell() {
         }}
       >
         <Toolbar />
+        {currentUser?.expires_at && (
+          <SessionExpiryBanner expiresAt={currentUser.expires_at} />
+        )}
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

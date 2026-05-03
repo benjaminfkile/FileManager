@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { SESSION_EXPIRED_FLASH_KEY } from '../api/setupInterceptors';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -19,6 +20,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(SESSION_EXPIRED_FLASH_KEY) === '1') {
+        setSessionExpired(true);
+        sessionStorage.removeItem(SESSION_EXPIRED_FLASH_KEY);
+      }
+    } catch {
+      // sessionStorage unavailable — silently skip the flash.
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +64,12 @@ export default function LoginPage() {
           <Typography variant="h5" component="h1" align="center" gutterBottom>
             {process.env.REACT_APP_PAGE_NAME ?? 'File Manager'}
           </Typography>
+
+          {sessionExpired && !error && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Your demo session expired. Sign in or register again to start a fresh hour.
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>

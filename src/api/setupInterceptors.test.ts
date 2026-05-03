@@ -1,6 +1,10 @@
 import MockAdapter from 'axios-mock-adapter';
 import apiClient from './apiClient';
-import { setupInterceptors, ejectInterceptor } from './setupInterceptors';
+import {
+  setupInterceptors,
+  ejectInterceptor,
+  SESSION_EXPIRED_FLASH_KEY,
+} from './setupInterceptors';
 import * as cognitoClient from '../lib/cognitoClient';
 
 jest.mock('../lib/cognitoClient');
@@ -17,11 +21,13 @@ beforeEach(() => {
   // Default: token refresh returns null (no valid session)
   (cognitoClient.getIdToken as jest.Mock).mockResolvedValue(null);
   interceptorId = setupInterceptors(logout, navigate);
+  sessionStorage.removeItem(SESSION_EXPIRED_FLASH_KEY);
 });
 
 afterEach(() => {
   ejectInterceptor(interceptorId);
   mock.reset();
+  sessionStorage.removeItem(SESSION_EXPIRED_FLASH_KEY);
 });
 
 describe('setupInterceptors', () => {
@@ -104,6 +110,19 @@ describe('setupInterceptors', () => {
     } catch (error: any) {
       expect(error.response.status).toBe(401);
     }
+  });
+
+  it('routes to /login with the session-expired flash on 401 "Session expired" without retrying', async () => {
+    mock.onGet('/test').reply(401, { error: 'Session expired' });
+    (cognitoClient.getIdToken as jest.Mock).mockResolvedValue('fresh-token');
+
+    await expect(apiClient.get('/test')).rejects.toThrow();
+
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/login');
+    expect(sessionStorage.getItem(SESSION_EXPIRED_FLASH_KEY)).toBe('1');
+    // Did not retry — only one outbound call.
+    expect(mock.history.get.length).toBe(1);
   });
 
   it('does not trigger after interceptor is ejected', async () => {
