@@ -4,7 +4,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useChunkedUpload } from '../hooks/useChunkedUpload';
 import { IFile } from '../types';
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 ** 3; // 50 GB
+export const MAX_FILE_SIZE_BYTES = 5 * 1024 ** 4; // 5 TB
 
 export interface FileUploadProps {
   folderId: string | null;
@@ -23,7 +23,7 @@ export default function FileUpload({ folderId, onUploaded }: FileUploadProps) {
       setSizeError(null);
 
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        setSizeError('File exceeds the maximum upload size of 50 GB');
+        setSizeError('File exceeds the maximum upload size of 5 TB');
         return;
       }
 

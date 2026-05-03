@@ -1,4 +1,7 @@
-export const CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const ONE_MB = 1024 * 1024;
+
+export const MIN_CHUNK_SIZE_BYTES = 10 * ONE_MB; // 10 MB floor
+export const MAX_CHUNK_COUNT = 9000; // S3 multipart limit headroom
 
 export interface FileChunk {
   blob: Blob;
@@ -7,9 +10,15 @@ export interface FileChunk {
   end: number; // byte offset end (exclusive)
 }
 
+export function pickChunkSize(fileSize: number): number {
+  const minBytesPerChunk = Math.ceil(fileSize / MAX_CHUNK_COUNT);
+  const roundedToMB = Math.ceil(minBytesPerChunk / ONE_MB) * ONE_MB;
+  return Math.max(MIN_CHUNK_SIZE_BYTES, roundedToMB);
+}
+
 export function chunkFile(
   file: File,
-  chunkSize = CHUNK_SIZE_BYTES
+  chunkSize: number = pickChunkSize(file.size),
 ): FileChunk[] {
   if (file.size === 0) {
     return [];
