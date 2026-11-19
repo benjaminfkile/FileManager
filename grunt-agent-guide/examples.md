@@ -1,20 +1,20 @@
-# grunt API — Examples
+# grunt API: Examples
 
-Runnable `curl` recipes. The base URL is `http://192.168.50.30:5173` and there are no auth headers.
+Runnable `curl` recipes. The base URL is `http://<grunt-host>` and there are no auth headers.
 
 ## Health check before doing anything
 
 ```sh
-curl -s http://192.168.50.30:5173/api/health | jq
+curl -s http://<grunt-host>/api/health | jq
 ```
 
 Look for `status: "ok"`. Then sanity-check the runtime:
 
 ```sh
-curl -s http://192.168.50.30:5173/api/system/docker        | jq
-curl -s http://192.168.50.30:5173/api/system/runner-image  | jq
-curl -s http://192.168.50.30:5173/api/system/capped        | jq
-curl -s http://192.168.50.30:5173/api/system/worker-status | jq
+curl -s http://<grunt-host>/api/system/docker        | jq
+curl -s http://<grunt-host>/api/system/runner-image  | jq
+curl -s http://<grunt-host>/api/system/capped        | jq
+curl -s http://<grunt-host>/api/system/worker-status | jq
 ```
 
 If `docker.available` is false, `runner-image.status` is `"building"`/`"error"`, `capped.capped` is true, or `worker-status.mode !== "worker"`, posted tasks will sit in `pending`.
@@ -24,13 +24,13 @@ If `docker.available` is false, `runner-image.status` is `"building"`/`"error"`,
 List existing:
 
 ```sh
-curl -s http://192.168.50.30:5173/api/repos | jq
+curl -s http://<grunt-host>/api/repos | jq
 ```
 
 Register a new git-backed repo (clones synchronously):
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos \
+curl -s -X POST http://<grunt-host>/api/repos \
   -H 'Content-Type: application/json' \
   -d '{
     "owner": "myorg",
@@ -43,7 +43,7 @@ curl -s -X POST http://192.168.50.30:5173/api/repos \
 Register a local-folder repo (no git, no PR):
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos \
+curl -s -X POST http://<grunt-host>/api/repos \
   -H 'Content-Type: application/json' \
   -d '{
     "is_local_folder": true,
@@ -54,13 +54,13 @@ curl -s -X POST http://192.168.50.30:5173/api/repos \
 Re-clone a repo that errored:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos/12/clone | jq
+curl -s -X POST http://<grunt-host>/api/repos/12/clone | jq
 ```
 
 ## Post a single task
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/tasks \
+curl -s -X POST http://<grunt-host>/api/tasks \
   -H 'Content-Type: application/json' \
   -d '{
     "repo_id": 12,
@@ -74,12 +74,12 @@ curl -s -X POST http://192.168.50.30:5173/api/tasks \
   }' | jq
 ```
 
-The response includes the new task id — use it for everything downstream.
+The response includes the new task id: use it for everything downstream.
 
 ## Post a parent + children atomically
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos/12/materialize-tree \
+curl -s -X POST http://<grunt-host>/api/repos/12/materialize-tree \
   -H 'Content-Type: application/json' \
   -d '{
     "parents": [
@@ -117,37 +117,37 @@ curl -s -X POST http://192.168.50.30:5173/api/repos/12/materialize-tree \
 Poll status:
 
 ```sh
-curl -s http://192.168.50.30:5173/api/tasks/42 | jq '{status, retry_count, pr_url}'
+curl -s http://<grunt-host>/api/tasks/42 | jq '{status, retry_count, pr_url}'
 ```
 
 Read the saved log (404 until first byte):
 
 ```sh
-curl -s http://192.168.50.30:5173/api/tasks/42/log
+curl -s http://<grunt-host>/api/tasks/42/log
 ```
 
 Stream the log via SSE while the task is active (server closes the stream on terminal state):
 
 ```sh
-curl -N http://192.168.50.30:5173/api/tasks/42/log/stream
+curl -N http://<grunt-host>/api/tasks/42/log/stream
 ```
 
 Read the event timeline:
 
 ```sh
-curl -s http://192.168.50.30:5173/api/tasks/42/events | jq
+curl -s http://<grunt-host>/api/tasks/42/events | jq
 ```
 
 Token usage for the task:
 
 ```sh
-curl -s http://192.168.50.30:5173/api/tasks/42/usage | jq
+curl -s http://<grunt-host>/api/tasks/42/usage | jq
 ```
 
 ## Mark a criterion satisfied
 
 ```sh
-curl -s -X PATCH http://192.168.50.30:5173/api/tasks/42/criteria/101 \
+curl -s -X PATCH http://<grunt-host>/api/tasks/42/criteria/101 \
   -H 'Content-Type: application/json' \
   -d '{"met": true}' | jq
 ```
@@ -157,7 +157,7 @@ curl -s -X PATCH http://192.168.50.30:5173/api/tasks/42/criteria/101 \
 A user-authored note visible to all tasks in the repo:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/tasks/42/notes \
+curl -s -X POST http://<grunt-host>/api/tasks/42/notes \
   -H 'Content-Type: application/json' \
   -d '{
     "author": "user",
@@ -167,10 +167,10 @@ curl -s -X POST http://192.168.50.30:5173/api/tasks/42/notes \
   }' | jq
 ```
 
-A note scoped to descendants only — useful when the parent has guidance for its children:
+A note scoped to descendants only: useful when the parent has guidance for its children:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/tasks/42/notes \
+curl -s -X POST http://<grunt-host>/api/tasks/42/notes \
   -H 'Content-Type: application/json' \
   -d '{
     "author": "user",
@@ -184,7 +184,7 @@ curl -s -X POST http://192.168.50.30:5173/api/tasks/42/notes \
 Create a task that won't auto-run:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/tasks \
+curl -s -X POST http://<grunt-host>/api/tasks \
   -H 'Content-Type: application/json' \
   -d '{
     "repo_id": 12,
@@ -197,7 +197,7 @@ curl -s -X POST http://192.168.50.30:5173/api/tasks \
 Release it for the scheduler:
 
 ```sh
-curl -s -X PATCH http://192.168.50.30:5173/api/tasks/77 \
+curl -s -X PATCH http://<grunt-host>/api/tasks/77 \
   -H 'Content-Type: application/json' \
   -d '{"requires_approval": false}' | jq
 ```
@@ -205,11 +205,11 @@ curl -s -X PATCH http://192.168.50.30:5173/api/tasks/77 \
 ## Override the model for a task
 
 ```sh
-curl -s -X PATCH http://192.168.50.30:5173/api/tasks/42 \
+curl -s -X PATCH http://<grunt-host>/api/tasks/42 \
   -H 'Content-Type: application/json' \
   -d '{"model": "claude-opus-4-7"}' | jq
 
-curl -s http://192.168.50.30:5173/api/tasks/42/effective-model | jq
+curl -s http://<grunt-host>/api/tasks/42/effective-model | jq
 ```
 
 The `effective-model` endpoint also tells you *where* the model came from (override / parent / default).
@@ -217,7 +217,7 @@ The `effective-model` endpoint also tells you *where* the model came from (overr
 ## Register a Slack-compatible webhook
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos/12/webhooks \
+curl -s -X POST http://<grunt-host>/api/repos/12/webhooks \
   -H 'Content-Type: application/json' \
   -d '{
     "url": "https://hooks.slack.com/services/T000/B000/XXX",
@@ -231,7 +231,7 @@ curl -s -X POST http://192.168.50.30:5173/api/repos/12/webhooks \
 Capture the current tree under a repo:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/templates \
+curl -s -X POST http://<grunt-host>/api/templates \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "service-bootstrap",
@@ -243,13 +243,13 @@ curl -s -X POST http://192.168.50.30:5173/api/templates \
 Replay it into another repo:
 
 ```sh
-curl -s -X POST http://192.168.50.30:5173/api/repos/19/instantiate-template/3 | jq
+curl -s -X POST http://<grunt-host>/api/repos/19/instantiate-template/3 | jq
 ```
 
 ## A complete poll-to-done loop (bash)
 
 ```sh
-TASK_ID=$(curl -s -X POST http://192.168.50.30:5173/api/tasks \
+TASK_ID=$(curl -s -X POST http://<grunt-host>/api/tasks \
   -H 'Content-Type: application/json' \
   -d '{
     "repo_id": 12,
@@ -259,7 +259,7 @@ TASK_ID=$(curl -s -X POST http://192.168.50.30:5173/api/tasks \
   }' | jq -r '.id')
 
 while :; do
-  STATUS=$(curl -s "http://192.168.50.30:5173/api/tasks/$TASK_ID" | jq -r '.status')
+  STATUS=$(curl -s "http://<grunt-host>/api/tasks/$TASK_ID" | jq -r '.status')
   echo "task $TASK_ID: $STATUS"
   case "$STATUS" in
     done|failed) break ;;
@@ -267,7 +267,7 @@ while :; do
   sleep 10
 done
 
-curl -s "http://192.168.50.30:5173/api/tasks/$TASK_ID" | jq
+curl -s "http://<grunt-host>/api/tasks/$TASK_ID" | jq
 ```
 
 ## A complete poll-to-done loop (PowerShell)
@@ -281,16 +281,16 @@ $body = @{
 } | ConvertTo-Json
 
 $task = Invoke-RestMethod -Method Post `
-  -Uri http://192.168.50.30:5173/api/tasks `
+  -Uri http://<grunt-host>/api/tasks `
   -ContentType application/json `
   -Body $body
 
 while ($true) {
-  $t = Invoke-RestMethod -Uri "http://192.168.50.30:5173/api/tasks/$($task.id)"
+  $t = Invoke-RestMethod -Uri "http://<grunt-host>/api/tasks/$($task.id)"
   Write-Host "task $($task.id): $($t.status)"
   if ($t.status -in @("done", "failed")) { break }
   Start-Sleep -Seconds 10
 }
 
-Invoke-RestMethod -Uri "http://192.168.50.30:5173/api/tasks/$($task.id)" | ConvertTo-Json -Depth 6
+Invoke-RestMethod -Uri "http://<grunt-host>/api/tasks/$($task.id)" | ConvertTo-Json -Depth 6
 ```

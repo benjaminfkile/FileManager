@@ -1,8 +1,8 @@
-# Posting Tasks — End-to-End Workflow
+# Posting Tasks: End-to-End Workflow
 
 This is the canonical flow an agent follows to ask grunt to do work. Pick the path that matches what you have on hand.
 
-## Path A — single task on an existing repo
+## Path A: single task on an existing repo
 
 This is the most common case. You know the repo id and want to post one task.
 
@@ -38,7 +38,7 @@ Content-Type: application/json
 }
 ```
 
-Response: the created `Task` plus the `acceptanceCriteria` array it materialised. Save `id` — that's the handle for everything downstream.
+Response: the created `Task` plus the `acceptanceCriteria` array it materialised. Save `id`: that's the handle for everything downstream.
 
 Optional fields you can set at creation:
 
@@ -46,7 +46,7 @@ Optional fields you can set at creation:
 | --- | --- |
 | `parent_id` | Nest under a parent task. Parent must already exist on the same repo. |
 | `order_position` | Integer sort order within siblings. Omit to append at the end. |
-| `ordering_mode` | `"sequential"` or `"parallel"` — overrides the repo default for this task's children. |
+| `ordering_mode` | `"sequential"` or `"parallel"`: overrides the repo default for this task's children. |
 | `model` | Override the Claude model for this task (and descendants, by inheritance). `null` = inherit. |
 | `requires_approval` | `true` parks the task in `pending` until a human flips it off. |
 
@@ -60,20 +60,20 @@ GET /api/tasks/12
 
 If you need richer signal, use one of these instead of/alongside polling:
 
-- **`GET /api/tasks/:id/events`** — append-only timeline (`claimed`, `claude_started`, `claude_finished`, `branch_created`, `commit_pushed`, `pr_opened`, `status_change`).
-- **`GET /api/tasks/:id/log`** — full saved log file once it exists.
-- **`GET /api/tasks/:id/log/stream`** — SSE stream of the log while the task is `pending`/`active`. Server closes the connection automatically when the task reaches a terminal state.
+- **`GET /api/tasks/:id/events`**: append-only timeline (`claimed`, `claude_started`, `claude_finished`, `branch_created`, `commit_pushed`, `pr_opened`, `status_change`).
+- **`GET /api/tasks/:id/log`**: full saved log file once it exists.
+- **`GET /api/tasks/:id/log/stream`**: SSE stream of the log while the task is `pending`/`active`. Server closes the connection automatically when the task reaches a terminal state.
 
 ### 4. Inspect the result
 
 On `done`:
 - `pr_url` is set if the repo has `require_pr: true`.
 - Otherwise the task branch was merged into `base_branch` and pushed.
-- For `is_local_folder: true` repos, no git operations happened — only the working tree changed.
+- For `is_local_folder: true` repos, no git operations happened: only the working tree changed.
 
 On `failed`: read `/log` and `/events`, decide whether to PATCH and re-post (or post a sibling task).
 
-## Path B — multi-task tree in one shot
+## Path B: multi-task tree in one shot
 
 Use this when you've planned out a parent + children + acceptance criteria up front and want to materialise the whole tree atomically. This is the same primitive grunt's chat planner uses.
 
@@ -110,11 +110,11 @@ Content-Type: application/json
 }
 ```
 
-A top-level parent may set `repo_id` to target a directly-linked sibling repo (single-hop). The whole tree is created in a single transaction — partial materialisation never happens.
+A top-level parent may set `repo_id` to target a directly-linked sibling repo (single-hop). The whole tree is created in a single transaction: partial materialisation never happens.
 
 Response: `MaterializedTaskTree` with the actual ids assigned to each node. Use those ids to monitor progress just like Path A.
 
-## Path C — register a brand new repo, then post
+## Path C: register a brand new repo, then post
 
 ```http
 POST /api/repos
@@ -187,7 +187,7 @@ Failure path:
 - **Local-folder repos skip git entirely.** No branches, no PRs, no merges. The agent edits the working tree in place.
 - **Notes from the agent only persist on success.** A failed run's `<NOTES_TO_SAVE>` blocks are dropped.
 - **Cancelling a running task is not exposed via API.** You can `DELETE /api/tasks/:id` while pending; while active, the lease has to expire (default 30 min) before the row can be reclaimed.
-- **`POST /api/repos/:id/advance` is a stub.** Don't rely on it to "kick" the queue — the scheduler ticks on its own interval (`POLL_INTERVAL_SECONDS`).
+- **`POST /api/repos/:id/advance` is a stub.** Don't rely on it to "kick" the queue: the scheduler ticks on its own interval (`POLL_INTERVAL_SECONDS`).
 
 ## When in doubt
 

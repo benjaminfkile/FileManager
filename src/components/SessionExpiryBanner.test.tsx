@@ -49,7 +49,7 @@ describe('SessionExpiryBanner', () => {
     render(<SessionExpiryBanner expiresAt={expiresAt} />);
 
     expect(
-      screen.getByText(/demo session expired — refresh the page/i),
+      screen.getByText(/demo session expired\. refresh the page/i),
     ).toBeInTheDocument();
   });
 });

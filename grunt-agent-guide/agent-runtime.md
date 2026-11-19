@@ -1,6 +1,6 @@
-# Agent Runtime — what the executing agent sees
+# Agent Runtime: what the executing agent sees
 
-This document describes the environment the **in-container** Claude Code agent runs in when grunt picks up a task. Most callers of the API don't need this — it's relevant if you're writing prompts/instructions that will end up in a task's `description`, building tools that introspect grunt's behaviour, or debugging why a task ran the way it did.
+This document describes the environment the **in-container** Claude Code agent runs in when grunt picks up a task. Most callers of the API don't need this: it's relevant if you're writing prompts/instructions that will end up in a task's `description`, building tools that introspect grunt's behaviour, or debugging why a task ran the way it did.
 
 If you're just posting tasks, [`posting-tasks.md`](./posting-tasks.md) is enough.
 
@@ -8,7 +8,7 @@ If you're just posting tasks, [`posting-tasks.md`](./posting-tasks.md) is enough
 
 1. The scheduler picks the next pending **leaf** task (no pending children) on an active repo, claims it (sets `status='active'`, `worker_id`, `leased_until`).
 2. For git-backed repos: the runner clones/pulls, checks out `base_branch`, cuts a per-task branch named after the task id, mounts it at `/workspace`.
-3. Linked repos get bind-mounted under `/context/<name>` — read-only by default, read-write when the link's `permission === "write"`.
+3. Linked repos get bind-mounted under `/context/<name>`: read-only by default, read-write when the link's `permission === "write"`.
 4. The runner spawns a Docker container (image `grunt/runner`) with the task's resolved Claude model and pipes a `TaskPayload` JSON to the agent.
 5. The agent works inside the container. Its log is streamed to a host-side file at `<REPOS_PATH>/_logs/task-<id>.log`.
 6. On success: optional `<NOTES_TO_SAVE>` blocks are persisted, the worker commits + pushes, opens a PR if `repo.require_pr`, otherwise merges into base.
@@ -23,7 +23,7 @@ If you're just posting tasks, [`posting-tasks.md`](./posting-tasks.md) is enough
 /home/node/.claude          # host's Claude Code auth, copied into a temp dir per run
 ```
 
-Anything not listed is invisible — the agent must not assume other paths exist on disk.
+Anything not listed is invisible: the agent must not assume other paths exist on disk.
 
 Writes to read-only mounts fail at the kernel layer with `EROFS`. The agent should treat read-only context repos as reference material; do not retry / chmod / try to work around the failure.
 
@@ -51,7 +51,7 @@ interface TaskPayload {
 }
 ```
 
-Notes are pre-filtered to the visibility rules — every note in this array is one the agent is *meant* to see for this task.
+Notes are pre-filtered to the visibility rules: every note in this array is one the agent is *meant* to see for this task.
 
 ## NOTES_TO_SAVE protocol
 
@@ -70,11 +70,11 @@ Agents can leave structured notes for related tasks by emitting one or more `<NO
 ```
 
 Fields:
-- `content` (string, required) — concise, concrete.
-- `visibility` (string, required) — `self`, `siblings`, `descendants`, `ancestors`, or `all`.
+- `content` (string, required): concise, concrete.
+- `visibility` (string, required): `self`, `siblings`, `descendants`, `ancestors`, or `all`.
 - `tags` (string array, optional).
 
-Multiple blocks are allowed. Notes are persisted **only on success** with `author='agent'` and `task_id=<this task>`. Use sparingly — only when the information is non-obvious and useful to whoever picks up adjacent work.
+Multiple blocks are allowed. Notes are persisted **only on success** with `author='agent'` and `task_id=<this task>`. Use sparingly: only when the information is non-obvious and useful to whoever picks up adjacent work.
 
 Visibility resolution (same as the API's note rules): a note authored on task N is visible to task X when N == X (self), or `siblings` and N/X share `parent_id`, or `descendants` and N is a strict ancestor of X, or `ancestors` and N is a strict descendant of X, or `all` and N/X live in the same repo.
 
@@ -89,10 +89,10 @@ Visibility resolution (same as the API's note rules): a note authored on task N 
 - Up to **3 attempts** per task by default (`MAX_ATTEMPTS = 3`).
 - Each failed attempt increments `retry_count` and records `claude_finished` / `status_change` events.
 - After the final attempt, the task moves to `failed` and the repo's `on_failure` policy applies:
-  - `halt_repo` — scheduler stops claiming new tasks on this repo.
-  - `halt_subtree` — descendants of the failed task are skipped.
-  - `retry` — re-queue once more (one-shot extra attempt).
-  - `continue` — leave failed, keep claiming siblings.
+  - `halt_repo`: scheduler stops claiming new tasks on this repo.
+  - `halt_subtree`: descendants of the failed task are skipped.
+  - `retry`: re-queue once more (one-shot extra attempt).
+  - `continue`: leave failed, keep claiming siblings.
 
 The `on_parent_child_fail` policy then decides how the failure rolls up: `cascade_fail` fails the parent, `mark_partial` flags it, `ignore` leaves the parent untouched.
 
@@ -110,9 +110,9 @@ For a task T, the model is resolved by walking:
 
 Every agent run (success **or** failure) inserts a `task_usage` row whose four fields mirror the Anthropic API's `usage` block: `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`. Aggregations:
 
-- `GET /api/tasks/:id/usage` — totals + per-run rows for the task.
-- `GET /api/repos/:id/usage` — totals across the repo.
-- `GET /api/usage/weekly` — trailing-7-day totals + 30-day daily breakdown.
+- `GET /api/tasks/:id/usage`: totals + per-run rows for the task.
+- `GET /api/repos/:id/usage`: totals across the repo.
+- `GET /api/usage/weekly`: trailing-7-day totals + 30-day daily breakdown.
 - The scheduler's weekly-cap check uses the trailing-7-day total against `settings.weekly_token_cap`. When capped, it stops claiming new work until usage rolls off (in-flight tasks are not preempted).
 
 ## Webhooks fired on terminal states

@@ -34,8 +34,8 @@ export default function SessionExpiryBanner({ expiresAt }: Props) {
     <Box sx={{ mb: 2 }}>
       <Alert severity={severity} icon={<AccessTimeIcon fontSize="inherit" />}>
         {isExpired
-          ? 'Demo session expired — refresh the page to start a new one.'
-          : `Demo account — your data will be wiped in ${formatRemaining(remainingMs)}.`}
+          ? 'Demo session expired. Refresh the page to start a new one.'
+          : `Demo account: your data will be wiped in ${formatRemaining(remainingMs)}.`}
       </Alert>
     </Box>
   );

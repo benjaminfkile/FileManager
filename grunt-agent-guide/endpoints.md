@@ -1,6 +1,6 @@
-# grunt API — Endpoint Reference
+# grunt API: Endpoint Reference
 
-Base URL: `http://192.168.50.30:5173`. All endpoints are JSON in / JSON out unless noted. No auth headers.
+Base URL: `http://<grunt-host>`. All endpoints are JSON in / JSON out unless noted. No auth headers.
 
 Conventions:
 - Path params (`:id`, `:taskId`, `:criterionId`, …) are always integers.
@@ -25,11 +25,11 @@ Conventions:
 | --- | --- | --- |
 | GET | `/api/setup` | `{ ready, configured: { GH_PAT: boolean } }`. The GUI gates the main UI on `ready`. |
 | POST | `/api/setup` | Body `{ "GH_PAT": "..." }`. Stores the GitHub PAT in the encrypted secrets store. |
-| PATCH | `/api/setup` | Partial update — rotate one key. |
+| PATCH | `/api/setup` | Partial update: rotate one key. |
 | DELETE | `/api/setup` | Clears all required secrets. |
 | DELETE | `/api/setup/:key` | Clears a single required secret. Currently only `GH_PAT`. |
 
-Agents posting tasks generally do **not** need to touch this endpoint — it's an onboarding concern. Tasks themselves authenticate to GitHub via the host's Claude Code subscription, not an Anthropic API key.
+Agents posting tasks generally do **not** need to touch this endpoint: it's an onboarding concern. Tasks themselves authenticate to GitHub via the host's Claude Code subscription, not an Anthropic API key.
 
 ## Settings (single-row)
 
@@ -74,7 +74,7 @@ Returns 409 `{ "error": "Repo already exists" }` if `(owner, repo_name)` is alre
 | Method | Path | Purpose |
 | --- | --- | --- |
 | POST | `/api/repos/:id/clone` | Re-clone a git-backed repo whose initial clone failed. Wipes the working tree first. |
-| POST | `/api/repos/:id/advance` | Stub — currently a no-op success. Don't depend on it. |
+| POST | `/api/repos/:id/advance` | Stub: currently a no-op success. Don't depend on it. |
 | POST | `/api/repos/:id/materialize-tree` | Atomically create a parent/children/criteria task tree. See [`posting-tasks.md` → Path B](./posting-tasks.md). |
 | POST | `/api/repos/:id/instantiate-template/:templateId` | Replay a saved `TaskTemplate` into this repo. |
 | GET | `/api/repos/:id/usage` | Aggregated token usage across every task in the repo. |
@@ -97,7 +97,7 @@ Returns 409 `{ "error": "Repo already exists" }` if `(owner, repo_name)` is alre
 | PATCH | `/api/repos/:id/links/:linkId` | Body `{ permission }`. |
 | DELETE | `/api/repos/:id/links/:linkId` | Remove the link. |
 
-A link mounts the linked repo at `/context/<name>` inside the runner container — read-only by default, read-write when `permission === "write"`.
+A link mounts the linked repo at `/context/<name>` inside the runner container: read-only by default, read-write when `permission === "write"`.
 
 ## Tasks
 
@@ -125,7 +125,7 @@ A link mounts the linked repo at `/context/<name>` inside the runner container �
 | `requires_approval` | boolean | When true, blocks scheduler claims. |
 | `acceptanceCriteria` | string[] | Materialised as `AcceptanceCriterion` rows. |
 
-`PATCH /api/tasks/:id` accepts: `title`, `description`, `order_position`, `status`, `ordering_mode`, `requires_approval`, `model`. Setting `status` directly is allowed but rare — the scheduler/runner own that field in normal operation.
+`PATCH /api/tasks/:id` accepts: `title`, `description`, `order_position`, `status`, `ordering_mode`, `requires_approval`, `model`. Setting `status` directly is allowed but rare: the scheduler/runner own that field in normal operation.
 
 ### Task introspection
 
@@ -134,7 +134,7 @@ A link mounts the linked repo at `/context/<name>` inside the runner container �
 | GET | `/api/tasks/:id/log` | The saved log file as `text/plain`. 404 until the agent writes its first byte. |
 | GET | `/api/tasks/:id/log/stream` | SSE stream of the log; closes when the task hits a terminal state. |
 | GET | `/api/tasks/:id/events` | Chronological `TaskEvent` list. |
-| GET | `/api/tasks/:id/usage` | `{ totals, runs }` — token totals plus per-run rows. |
+| GET | `/api/tasks/:id/usage` | `{ totals, runs }`: token totals plus per-run rows. |
 | GET | `/api/tasks/:id/effective-model` | Resolved model + source (override / parent / default). |
 
 ### Acceptance criteria
@@ -146,7 +146,7 @@ A link mounts the linked repo at `/context/<name>` inside the runner container �
 | PATCH | `/api/tasks/:taskId/criteria/:criterionId` | Update `description`, `order_position`, or `met`. |
 | DELETE | `/api/tasks/:taskId/criteria/:criterionId` | Remove a criterion. |
 
-Flipping `met: true` is the canonical way to mark a criterion satisfied — both the agent and the API client can do it.
+Flipping `met: true` is the canonical way to mark a criterion satisfied: both the agent and the API client can do it.
 
 ### Notes (cross-task context)
 
@@ -179,7 +179,7 @@ A note authored on task N is visible to task X when:
 | POST | `/api/templates` | Save a new template. Two body shapes accepted (see below). |
 | DELETE | `/api/templates/:id` | Drop a template. |
 
-`POST /api/templates` body shape A — store an explicit tree:
+`POST /api/templates` body shape A: store an explicit tree:
 
 ```json
 {
@@ -189,7 +189,7 @@ A note authored on task N is visible to task X when:
 }
 ```
 
-Body shape B — capture the current tree under a repo:
+Body shape B: capture the current tree under a repo:
 
 ```json
 {

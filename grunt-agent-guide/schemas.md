@@ -1,4 +1,4 @@
-# grunt API — Type Shapes
+# grunt API: Type Shapes
 
 These are the canonical shapes you'll see in request/response bodies. Field names match the database columns 1:1.
 
@@ -90,7 +90,7 @@ interface TaskEvent {
 }
 ```
 
-Known event names emitted by the runner (non-exhaustive — treat unknowns as opaque):
+Known event names emitted by the runner (non-exhaustive: treat unknowns as opaque):
 
 | Event | `data` payload |
 | --- | --- |
@@ -238,7 +238,7 @@ interface Settings {
 
 ## `TaskPayload` (what the executing agent sees)
 
-This is **not** an API response shape — it's what the in-container Claude Code agent receives at task start. Documented here so callers writing tests / mocks know the surface.
+This is **not** an API response shape: it's what the in-container Claude Code agent receives at task start. Documented here so callers writing tests / mocks know the surface.
 
 ```ts
 interface TaskPayload {

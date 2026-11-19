@@ -114,7 +114,7 @@ export default function RecycleBinPage() {
       await fetchBin();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        const message = err.response.data?.message || err.response.data?.error || 'Cannot restore folder — parent is also in recycle bin';
+        const message = err.response.data?.message || err.response.data?.error || 'Cannot restore folder: its parent is also in the recycle bin';
         showNotification(message, 'error');
       } else {
         showNotification('Failed to restore folder', 'error');

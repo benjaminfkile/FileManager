@@ -7,7 +7,7 @@ export interface RegisterPayload {
   username: string;
 }
 
-// POST /api/users/register — no auth header needed
+// POST /api/users/register (Cognito token required; the local user row does not exist yet)
 export async function registerUser(payload: RegisterPayload): Promise<IUser> {
   const { data } = await apiClient.post<IUser>('/api/users/register', payload);
   return data;

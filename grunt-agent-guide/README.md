@@ -1,21 +1,21 @@
-# grunt API — Agent Guide
+# grunt API: Agent Guide
 
 This folder is a self-contained guide for AI agents that need to post and manage coding tasks against the **grunt** API. Drop the whole folder into any project and point the agent at it.
 
 ## What grunt is
 
-grunt is a single-user desktop service that schedules **Claude Code** agents to work on coding tasks against registered git repos (or local folders). You give grunt a structured task — title, description, acceptance criteria, optional children — and a background worker eventually picks it up, runs Claude Code inside a Docker container with the repo mounted at `/workspace`, and either opens a PR or merges the result.
+grunt is a single-user desktop service that schedules **Claude Code** agents to work on coding tasks against registered git repos (or local folders). You give grunt a structured task: title, description, acceptance criteria, optional children: and a background worker eventually picks it up, runs Claude Code inside a Docker container with the repo mounted at `/workspace`, and either opens a PR or merges the result.
 
 In short: this API is the **inbox** for code work. Posting a task is how you ask grunt to do something.
 
 ## Where the API lives
 
-- Base URL: `http://192.168.50.30:5173`
+- Base URL: `http://<grunt-host>` (the grunt server's address and port on the LAN; this repo is public, so the real address is not written here).
 - All endpoints are prefixed `/api`.
 - **No auth headers.** grunt's security model is the OS user boundary; the server is unreachable off-box. Just send JSON.
 - Content type: `application/json` for every POST/PATCH body.
 
-If the host runs grunt behind `bk-gateway-api`, the gateway adds CORS/helmet/auth — but the local API itself does not.
+If the host runs grunt behind `bk-gateway-api`, the gateway adds CORS/helmet/auth, but the local API itself does not.
 
 ## Files in this guide
 
@@ -38,13 +38,13 @@ That's the whole loop. Everything else in this guide is detail.
 
 ## Status checks before posting
 
-If a task immediately stalls in `pending`, one of these is the cause — check them first:
+If a task immediately stalls in `pending`, one of these is the cause: check them first:
 
-- `GET /api/health` — is the API even up.
-- `GET /api/system/docker` — Docker daemon must be reachable for tasks to run.
-- `GET /api/system/runner-image` — first run builds the `grunt/runner` image (can take minutes).
-- `GET /api/system/worker-status` — confirms a worker is running (vs. orchestrator-only mode).
-- `GET /api/system/capped` — weekly token cap reached → no new claims until usage rolls off.
+- `GET /api/health`: is the API even up.
+- `GET /api/system/docker`: Docker daemon must be reachable for tasks to run.
+- `GET /api/system/runner-image`: first run builds the `grunt/runner` image (can take minutes).
+- `GET /api/system/worker-status`: confirms a worker is running (vs. orchestrator-only mode).
+- `GET /api/system/capped`: weekly token cap reached → no new claims until usage rolls off.
 
 ## Important behavioural notes
 
